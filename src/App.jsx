@@ -89,6 +89,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "nla":        return <NLAEditor onAction={onAction}/>;
     case "preferences":return <PreferencesPanel onAction={onAction}/>;
     case "grapheditor": return <GraphEditor/>;
+    case "scripting":   return <ScriptingPanel onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -171,6 +172,8 @@ export default function App() {
       case "ws_greasepencil": handleSetWorkspace("GreasePencil"); break;
       case "openGraphEditor":  handleSetWorkspace("GraphEditor");  break;
       case "openGreasePencil": handleSetWorkspace("GreasePencil"); break;
+      case "ws_scripting":    handleSetWorkspace("Scripting");   break;
+      case "openScripting":   handleSetWorkspace("Scripting");   break;
       case "filmmat_skin": case "filmmat_hair": case "filmmat_hair_remove":
       case "filmmat_pbr":  case "filmmat_fog":  case "filmmat_fog_remove":
       case "filmmat_lod":  case "filmmat_instanced_foliage": case "filmmat_instanced_clear":
@@ -180,6 +183,8 @@ export default function App() {
         viewportActionRef.current?.(fn, params);
         if(fn==="particle_create") handleSetWorkspace("Particles");
         break;
+      case "script_run": case "script_save":
+        viewportActionRef.current?.(fn, params); break;
       case "show_skeleton": case "hide_skeleton": case "pref_pixelratio": case "pref_viewport": case "pref_theme": case "pref_units": case "pref_shortcut":
         viewportActionRef.current?.(fn, params); break;
       case "composite_render": case "comp_preset_film_look": case "comp_preset_bloom_+_glare":
@@ -187,6 +192,8 @@ export default function App() {
       case "cloth_create": case "cloth_start": case "cloth_stop": case "cloth_reset": case "cloth_wind":
       case "sk_add": case "sk_set": case "sk_remove": case "sk_facial_preset":
       case "snap_enabled": case "snap_mode": case "snap_grid": case "snap_threshold": case "snap_increment":
+      case "export_fbx": case "import_fbx":
+        viewportActionRef.current?.(fn, params); break;
       case "import_file": case "export_obj": case "export_stl": case "export_glb": case "export_gltf": case "export_png":
         viewportActionRef.current?.(fn, params); break;
       case "pt_start": case "pt_stop": case "pt_enable": case "pt_disable":

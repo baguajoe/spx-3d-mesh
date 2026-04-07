@@ -36,6 +36,7 @@ export default function Viewport(props) {
   const clothRunRef  = useRef(false);
   const clothRafRef  = useRef(null);
   const particleRef  = useRef(null);
+  const scriptRef    = useRef(null);
   const [gizmoMode,  setGizmoMode]  = useState("translate");
   const [undoInfo,      setUndoInfo]      = useState({ canUndo:false, canRedo:false });
   const [showSkeleton,  setShowSkeleton]  = useState(false);
@@ -107,6 +108,8 @@ export default function Viewport(props) {
     snapRef.current  = new SnapSystem(scene, cam);
     ioRef.current    = new ImportExportEngine(scene);
     particleRef.current = new ParticleEngine(scene);
+    const api = new SPXScriptingAPI(scene, eng, { getSelected:()=>selRef.current });
+    scriptRef.current = api;
     filmEngRef.current= filmEng;
     sculptEngRef.current = sculptEng;
     subSelRef.current = subSel;
@@ -289,6 +292,21 @@ export default function Viewport(props) {
       else if(fn==="particle_burst"){const em=particleRef.current?.emitters.values().next().value;em?.burst(200);setStatus("Burst!");}
       else if(fn==="particle_clear"){particleRef.current?.dispose();particleRef.current=new ParticleEngine(sceneRef.current);setStatus("Particles cleared");}
       else if(fn==="particle_remove"){particleRef.current?.remove(params?.name);setStatus(`Removed: ${params?.name}`);}
+      else if(fn==="script_run"){
+        const api=scriptRef.current; if(!api)return;
+        const result=api.run(params?.code||"");
+        // Send log entries back
+        const logs=api.getConsole().slice(-20);
+        logs.forEach(e=>params?.onLog?.(e));
+        params?.onDone?.();
+      }
+      else if(fn==="script_save"){scriptRef.current?.saveScript(params?.name,params?.code);setStatus(`Script saved: ${params?.name}`);}
+      else if(fn==="import_fbx"&&params?.file){
+        params.file.arrayBuffer().then(buf=>importFBX(buf,params.file.name.replace(".fbx","")).then(obj=>{
+          if(obj){sceneRef.current?.add(obj);setStatus(`FBX imported: ${obj.name}`);}
+        }));
+      }
+      else if(fn==="export_fbx"){exportFBX(sceneRef.current,"spx_export.fbx");setStatus("FBX exported");}
       else if(fn==="export_png"){const url=rendRef.current?.domElement?.toDataURL("image/png");if(url){const a=document.createElement("a");a.href=url;a.download="spx_screenshot.png";a.click();}setStatus("Screenshot saved");}
     });
   },[onRegisterAction]);
