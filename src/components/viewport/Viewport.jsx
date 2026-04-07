@@ -90,13 +90,16 @@ export default function Viewport(props) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
     const w = el.clientWidth > 0 ? el.clientWidth : (el.parentElement?.clientWidth || 600);
     const h = el.clientHeight > 0 ? el.clientHeight : (el.parentElement?.clientHeight || 500);
-    renderer.setSize(w, h);
+    renderer.setSize(w, h, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     el.appendChild(renderer.domElement);
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.display = "block";
     rendRef.current = renderer;
 
     const scene = new THREE.Scene();
@@ -194,7 +197,7 @@ export default function Viewport(props) {
     animate();
 
     const ro = new ResizeObserver(()=>{
-      renderer.setSize(el.clientWidth,el.clientHeight);
+      renderer.setSize(el.clientWidth,el.clientHeight,false);
       cam.aspect=el.clientWidth/el.clientHeight;
       cam.updateProjectionMatrix();
     });
