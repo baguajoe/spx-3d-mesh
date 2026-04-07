@@ -72,7 +72,7 @@ function OutlinerNode({ node, depth, onSelect, onToggleVisible, onToggleOpen }) 
     <>
       <div
         className={`spx-ol-row${node.selected ? " spx-ol-row--selected" : ""}`}
-        style={{ "--depth": depth }}
+        className={`spx-ol-row spx-ol-row--d${depth}${node.selected ? " spx-ol-row--selected" : ""}`}
         onClick={() => onSelect?.(node.id)}
       >
         <div className="spx-ol-row-left">
