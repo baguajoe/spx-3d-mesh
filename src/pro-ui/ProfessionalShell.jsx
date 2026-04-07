@@ -338,23 +338,6 @@ export default function ProfessionalShell({
         {leftToolbar && <div className="spx-lt-toolbar-wrap">{leftToolbar}</div>}
         <aside className="spx-left">{leftPanel}</aside>
 
-        {/* Tool Strip */}
-        <div className="spx-tool-strip">
-          {TOOLS.map((t) =>
-            t.divider ? (
-              <div key={t.id} className="spx-strip-divider" />
-            ) : (
-              <button
-                key={t.id}
-                title={t.label}
-                className={`spx-strip-btn${activeTool === t.fn ? " spx-strip-btn--active" : ""}`}
-                onClick={() => { setActiveTool?.(t.fn); onMenuAction?.(t.fn); }}
-              >
-                {React.cloneElement(t.svg, { width: 18, height: 18 })}
-              </button>
-            )
-          )}
-        </div>
 
         <main className="spx-center">{centerPanel}</main>
         <aside className="spx-right">{rightPanel}</aside>
