@@ -29,6 +29,12 @@ export default function Viewport(props) {
   const ptActiveRef  = useRef(false);
   const gizmoRef     = useRef(null);
   const undoRef      = useRef(null);
+  const clothRef     = useRef(null);
+  const skRef        = useRef(null);
+  const snapRef      = useRef(null);
+  const ioRef        = useRef(null);
+  const clothRunRef  = useRef(false);
+  const clothRafRef  = useRef(null);
   const [gizmoMode,  setGizmoMode]  = useState("translate");
   const [undoInfo,   setUndoInfo]   = useState({ canUndo:false, canRedo:false });
   const sculpting   = useRef(false);
@@ -93,6 +99,10 @@ export default function Viewport(props) {
     ptEng.init().then(ok => { if(ok) console.log("SPX Path Tracer ready"); });
     const gizmo=new TransformGizmo(scene,cam,renderer);gizmoRef.current=gizmo;
     const undo=new UndoRedoStack(100);undo.onChange(i=>setUndoInfo(i));undoRef.current=undo;
+    clothRef.current = new ClothSimulation(scene);
+    skRef.current    = new ShapeKeySystem(scene);
+    snapRef.current  = new SnapSystem(scene, cam);
+    ioRef.current    = new ImportExportEngine(scene);
     filmEngRef.current= filmEng;
     sculptEngRef.current = sculptEng;
     subSelRef.current = subSel;
@@ -140,6 +150,10 @@ export default function Viewport(props) {
       filmQualRef.current?.dispose();
       ptEngRef.current?.dispose();
       gizmoRef.current?.dispose();
+      clothRef.current?.dispose();
+      skRef.current?.dispose();
+      snapRef.current?.dispose();
+      if(clothRafRef.current)cancelAnimationFrame(clothRafRef.current);
       subSel.dispose();
       renderer.dispose();
       if(el.contains(renderer.domElement))el.removeChild(renderer.domElement);
@@ -190,6 +204,37 @@ export default function Viewport(props) {
       else if(fn==="tool_change"){const t=params?.tool;if(t==="move"){gizmoRef.current?.setMode("translate");setGizmoMode("translate");}if(t==="rotate"){gizmoRef.current?.setMode("rotate");setGizmoMode("rotate");}if(t==="scale"){gizmoRef.current?.setMode("scale");setGizmoMode("scale");}}
       else if(fn==="add_prim"){doAddPrim(params?.type||"cube");}
       else if(fn==="create_rig"){doCreateRig();}
+      // Cloth simulation
+      else if(fn==="cloth_create"){clothRef.current?.createCloth(params);setStatus("Cloth created");}
+      else if(fn==="cloth_start"){
+        clothRunRef.current=true;
+        const step=()=>{if(!clothRunRef.current)return;clothRef.current?.step();clothRafRef.current=requestAnimationFrame(step);};
+        step();setStatus("Cloth simulating…");
+      }
+      else if(fn==="cloth_stop"){clothRunRef.current=false;setStatus("Cloth stopped");}
+      else if(fn==="cloth_reset"){clothRunRef.current=false;if(params?.name)clothRef.current?.reset(params.name);setStatus("Cloth reset");}
+      else if(fn==="cloth_wind"){const c=clothRef.current;if(c){c.setWind(params?.x||0,0,params?.z||0);}}
+      // Shape keys
+      else if(fn==="sk_add"&&sel){const sk=skRef.current;if(sk){sk.addShapeKey(sel,params?.name||"Key");setStatus(`Shape key added: ${params?.name}`);}}
+      else if(fn==="sk_set"&&sel){skRef.current?.setValue(sel,params?.name,params?.value);}
+      else if(fn==="sk_remove"&&sel){skRef.current?.removeKey(sel,params?.name);}
+      else if(fn==="sk_facial_preset"&&sel){const keys=skRef.current?.createFacialKeys(sel);setStatus(`Facial keys: ${keys?.length||0} created`);}
+      // Snap
+      else if(fn==="snap_enabled"){snapRef.current?.setEnabled(params?.enabled);}
+      else if(fn==="snap_mode"){snapRef.current?.setMode(params?.mode);}
+      else if(fn==="snap_grid"){snapRef.current?.setGridSize(params?.size);}
+      // Import/Export
+      else if(fn==="import_file"&&params?.file){
+        ioRef.current?.importFile(params.file).then(obj=>{
+          if(obj&&obj.isMesh){meshesRef.current.push(obj);addOutline(obj);setStatus(`Imported: ${obj.name}`);}
+          else if(obj&&obj.isObject3D){setStatus(`Imported scene: ${params.file.name}`);}
+        });
+      }
+      else if(fn==="export_obj"){ioRef.current?.exportOBJ();setStatus("Exported OBJ");}
+      else if(fn==="export_stl"){ioRef.current?.exportSTL();setStatus("Exported STL");}
+      else if(fn==="export_glb"){ioRef.current?.exportGLTF();setStatus("Exported GLB");}
+      else if(fn==="export_gltf"){ioRef.current?.exportGLTF("export.gltf",false);setStatus("Exported GLTF");}
+      else if(fn==="export_png"){const url=rendRef.current?.domElement?.toDataURL("image/png");if(url){const a=document.createElement("a");a.href=url;a.download="spx_screenshot.png";a.click();}setStatus("Screenshot saved");}
     });
   },[onRegisterAction]);
 

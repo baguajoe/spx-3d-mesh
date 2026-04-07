@@ -21,6 +21,7 @@ import FilmMaterialsPanel  from "./components/panels/FilmMaterialsPanel";
 import PathTracerPanel     from "./components/panels/PathTracerPanel";
 import MocapPanel          from "./components/panels/MocapPanel";
 import LeftToolbar         from "./components/panels/LeftToolbar";
+import SimulationPanel     from "./components/panels/SimulationPanel";
 import "./styles/spx-shell.css";
 import "./styles/spx-panels.css";
 import "./styles/spx-tools.css";
@@ -76,6 +77,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "filmmat":    return <FilmMaterialsPanel onAction={onAction}/>;
     case "pathtrace":  return <PathTracerPanel onAction={onAction}/>;
     case "mocap":      return <MocapPanel onAction={onAction}/>;
+    case "simulation": return <SimulationPanel onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -141,9 +143,16 @@ export default function App() {
       case "ws_filmmat":     handleSetWorkspace("FilmMat");    break;
       case "ws_pathtrace":   handleSetWorkspace("PathTrace");  break;
       case "ws_mocap":       handleSetWorkspace("Mocap");      break;
+      case "ws_simulation":  handleSetWorkspace("Simulation"); break;
+      case "openSimulation": handleSetWorkspace("Simulation"); break;
       case "filmmat_skin": case "filmmat_hair": case "filmmat_hair_remove":
       case "filmmat_pbr":  case "filmmat_fog":  case "filmmat_fog_remove":
       case "filmmat_lod":  case "filmmat_instanced_foliage": case "filmmat_instanced_clear":
+        viewportActionRef.current?.(fn, params); break;
+      case "cloth_create": case "cloth_start": case "cloth_stop": case "cloth_reset": case "cloth_wind":
+      case "sk_add": case "sk_set": case "sk_remove": case "sk_facial_preset":
+      case "snap_enabled": case "snap_mode": case "snap_grid": case "snap_threshold": case "snap_increment":
+      case "import_file": case "export_obj": case "export_stl": case "export_glb": case "export_gltf": case "export_png":
         viewportActionRef.current?.(fn, params); break;
       case "pt_start": case "pt_stop": case "pt_enable": case "pt_disable":
       case "pt_reset": case "pt_sky":  case "pt_env_intensity":
