@@ -105,7 +105,16 @@ export default function Viewport(props) {
     cam.position.set(5,4,8); cam.lookAt(0,0,0);
     camRef.current = cam;
 
-    scene.add(new THREE.GridHelper(20,20,0x1a1a2e,0x111120));
+    const grid = new THREE.GridHelper(20, 20, 0x333355, 0x1a1a2e);
+    scene.add(grid);
+    // X axis line (red)
+    const xGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-10,0,0),new THREE.Vector3(10,0,0)]);
+    const xLine = new THREE.Line(xGeo, new THREE.LineBasicMaterial({color:0x882222,depthTest:false}));
+    scene.add(xLine);
+    // Z axis line (blue)
+    const zGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,-10),new THREE.Vector3(0,0,10)]);
+    const zLine = new THREE.Line(zGeo, new THREE.LineBasicMaterial({color:0x222288,depthTest:false}));
+    scene.add(zLine);
     scene.add(new THREE.AxesHelper(1));
     scene.add(new THREE.AmbientLight(0xffffff,0.4));
     const sun = new THREE.DirectionalLight(0xffffff,1.2);
