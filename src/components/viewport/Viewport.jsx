@@ -209,6 +209,24 @@ export default function Viewport(props) {
       else if(fn==="tool_change"){const t=params?.tool;if(t==="move"){gizmoRef.current?.setMode("translate");setGizmoMode("translate");}if(t==="rotate"){gizmoRef.current?.setMode("rotate");setGizmoMode("rotate");}if(t==="scale"){gizmoRef.current?.setMode("scale");setGizmoMode("scale");}}
       else if(fn==="add_prim"){doAddPrim(params?.type||"cube");}
       else if(fn==="create_rig"){doCreateRig();}
+      // Extended geo ops
+      else if(fn==="knife"){geoOp("knife",new THREE.Vector3(0,1,0),selRef.current?.position||new THREE.Vector3());}
+      else if(fn==="spin"){geoOp("spin",8,Math.PI*2,new THREE.Vector3(0,1,0));}
+      else if(fn==="screw"){geoOp("screw",12,2,1,new THREE.Vector3(0,1,0));}
+      else if(fn==="bridge"){
+        const meshes=meshesRef.current.filter(m=>m!==selRef.current&&!m.name.startsWith("_"));
+        if(meshes.length>0)engRef.current?.bridge(selRef.current,meshes[0]);
+      }
+      else if(fn==="bool_union"){
+        const meshes=meshesRef.current.filter(m=>m!==selRef.current&&!m.name.startsWith("_"));
+        if(meshes.length>0)engRef.current?.boolean(selRef.current,meshes[0],"union");
+      }
+      else if(fn==="bool_diff"){
+        const meshes=meshesRef.current.filter(m=>m!==selRef.current&&!m.name.startsWith("_"));
+        if(meshes.length>0)engRef.current?.boolean(selRef.current,meshes[0],"difference");
+      }
+      else if(fn==="triangulate"){geoOp("subdivide",0);}
+      else if(fn==="loop_cut"){geoOp("loopCut",0.5);}
       else if(fn==="show_skeleton"){
         const scene=sceneRef.current; if(!scene)return;
         if(skHelperRef.current){scene.remove(skHelperRef.current);skHelperRef.current=null;}

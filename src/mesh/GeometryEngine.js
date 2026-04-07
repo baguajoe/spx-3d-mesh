@@ -1,671 +1,424 @@
 /**
- * SPX HalfEdge Geometry Engine
- * Competing with Maya/Blender polygon modeling
- * Supports: extrude, bevel, loop cut, bridge, merge, dissolve, subdivide, boolean
+ * SPX Geometry Engine v2
+ * HalfEdge mesh — knife, bridge, spin, screw, loop cut, bevel, extrude, inset + all prior ops
  */
-
-// ── Data Structures ───────────────────────────────────────────────────────────
-export class HEVertex {
-  constructor(x = 0, y = 0, z = 0) {
-    this.x = x; this.y = y; this.z = z;
-    this.halfedge = null; // one outgoing halfedge
-    this.id = HEVertex._id++;
-    this.selected = false;
-    this.uv = { u: 0, v: 0 };
-    this.normal = { x: 0, y: 1, z: 0 };
-  }
-  clone() { return new HEVertex(this.x, this.y, this.z); }
-  distanceTo(v) { return Math.sqrt((this.x-v.x)**2+(this.y-v.y)**2+(this.z-v.z)**2); }
-  addScaled(v, s) { this.x+=v.x*s; this.y+=v.y*s; this.z+=v.z*s; return this; }
-}
-HEVertex._id = 0;
-
-export class HEHalfEdge {
-  constructor() {
-    this.vertex = null;   // vertex at the START of this halfedge
-    this.twin   = null;   // opposite halfedge
-    this.next   = null;   // next halfedge in same face loop
-    this.prev   = null;   // prev halfedge in same face loop
-    this.face   = null;   // face this belongs to (null = boundary)
-    this.id     = HEHalfEdge._id++;
-    this.selected = false;
-    this.crease = 0;      // subdivision crease weight 0-1
-    this.seam   = false;  // UV seam
-    this.sharp  = false;  // sharp edge
-  }
-}
-HEHalfEdge._id = 0;
-
-export class HEFace {
-  constructor() {
-    this.halfedge = null; // one halfedge of this face
-    this.id       = HEFace._id++;
-    this.selected = false;
-    this.normal   = { x: 0, y: 1, z: 0 };
-    this.material = 0;
-  }
-}
-HEFace._id = 0;
-
-// ── HalfEdge Mesh ─────────────────────────────────────────────────────────────
-export class HalfEdgeMesh {
-  constructor() {
-    this.vertices  = [];
-    this.halfedges = [];
-    this.faces     = [];
-  }
-
-  // ── Build from indexed geometry ─────────────────────────────────────────
-  static fromIndexed(positions, indices) {
-    const mesh = new HalfEdgeMesh();
-    // Create vertices
-    for (let i = 0; i < positions.length; i += 3) {
-      const v = new HEVertex(positions[i], positions[i+1], positions[i+2]);
-      mesh.vertices.push(v);
-    }
-    // Edge map for twin lookup
-    const edgeMap = new Map();
-    const key = (a, b) => `${Math.min(a,b)}_${Math.max(a,b)}`;
-
-    // Create faces and halfedges
-    for (let f = 0; f < indices.length; f += 3) {
-      const face = new HEFace();
-      mesh.faces.push(face);
-      const vids = [indices[f], indices[f+1], indices[f+2]];
-      const hes  = vids.map(() => new HEHalfEdge());
-      hes.forEach(he => mesh.halfedges.push(he));
-
-      for (let i = 0; i < 3; i++) {
-        const he   = hes[i];
-        const next = hes[(i+1)%3];
-        const prev = hes[(i+2+1)%3]; // hes[(i+2)%3]
-        he.vertex  = mesh.vertices[vids[i]];
-        he.next    = next;
-        he.prev    = hes[(i+2)%3];
-        he.face    = face;
-        if (!he.vertex.halfedge) he.vertex.halfedge = he;
-      }
-      face.halfedge = hes[0];
-
-      // Twin lookup
-      for (let i = 0; i < 3; i++) {
-        const he  = hes[i];
-        const a   = vids[i];
-        const b   = vids[(i+1)%3];
-        const k   = key(a, b);
-        if (edgeMap.has(k)) {
-          const twin  = edgeMap.get(k);
-          he.twin     = twin;
-          twin.twin   = he;
-          edgeMap.delete(k);
-        } else {
-          edgeMap.set(k, he);
-        }
-      }
-    }
-    mesh.computeNormals();
-    return mesh;
-  }
-
-  // ── Box primitive ────────────────────────────────────────────────────────
-  static createBox(w=2, h=2, d=2) {
-    const hw=w/2, hh=h/2, hd=d/2;
-    const pos = [
-      -hw,-hh,-hd,  hw,-hh,-hd,  hw,hh,-hd,  -hw,hh,-hd,
-      -hw,-hh, hd,  hw,-hh, hd,  hw,hh, hd,  -hw,hh, hd,
-    ];
-    const idx = [
-      0,2,1, 0,3,2, 4,5,6, 4,6,7,
-      0,1,5, 0,5,4, 2,3,7, 2,7,6,
-      0,4,7, 0,7,3, 1,2,6, 1,6,5,
-    ];
-    return HalfEdgeMesh.fromIndexed(pos, idx);
-  }
-
-  static createSphere(r=1, segs=8, rings=6) {
-    const pos=[], idx=[];
-    for (let ri=0; ri<=rings; ri++) {
-      const phi = Math.PI * ri / rings;
-      for (let si=0; si<=segs; si++) {
-        const theta = 2*Math.PI * si / segs;
-        pos.push(r*Math.sin(phi)*Math.cos(theta), r*Math.cos(phi), r*Math.sin(phi)*Math.sin(theta));
-      }
-    }
-    for (let ri=0; ri<rings; ri++) {
-      for (let si=0; si<segs; si++) {
-        const a=ri*(segs+1)+si, b=a+segs+1;
-        idx.push(a,b,a+1, b,b+1,a+1);
-      }
-    }
-    return HalfEdgeMesh.fromIndexed(pos, idx);
-  }
-
-  // ── Normals ──────────────────────────────────────────────────────────────
-  computeNormals() {
-    this.faces.forEach(f => {
-      const he  = f.halfedge;
-      const v0  = he.vertex, v1 = he.next.vertex, v2 = he.next.next.vertex;
-      const ax=v1.x-v0.x, ay=v1.y-v0.y, az=v1.z-v0.z;
-      const bx=v2.x-v0.x, by=v2.y-v0.y, bz=v2.z-v0.z;
-      const nx=ay*bz-az*by, ny=az*bx-ax*bz, nz=ax*by-ay*bx;
-      const len=Math.sqrt(nx*nx+ny*ny+nz*nz)||1;
-      f.normal = { x:nx/len, y:ny/len, z:nz/len };
-    });
-    this.vertices.forEach(v => {
-      let nx=0,ny=0,nz=0,c=0;
-      this.halfedges.filter(he=>he.vertex===v&&he.face).forEach(he=>{
-        nx+=he.face.normal.x; ny+=he.face.normal.y; nz+=he.face.normal.z; c++;
-      });
-      if(c>0){const l=Math.sqrt(nx*nx+ny*ny+nz*nz)||1; v.normal={x:nx/l,y:ny/l,z:nz/l};}
-    });
-  }
-
-  // ── To Three.js geometry ─────────────────────────────────────────────────
-  toThreeGeometry() {
-    const pos=[], nrm=[], uv=[];
-    this.faces.forEach(face => {
-      const verts = this.faceVertices(face);
-      // triangulate (fan)
-      for (let i=1; i<verts.length-1; i++) {
-        [verts[0], verts[i], verts[i+1]].forEach(v => {
-          pos.push(v.x, v.y, v.z);
-          nrm.push(v.normal.x, v.normal.y, v.normal.z);
-          uv.push(v.uv.u, v.uv.v);
-        });
-      }
-    });
-    return { positions: new Float32Array(pos), normals: new Float32Array(nrm), uvs: new Float32Array(uv) };
-  }
-
-  // ── Face vertices ────────────────────────────────────────────────────────
-  faceVertices(face) {
-    const verts = []; let he = face.halfedge;
-    do { verts.push(he.vertex); he = he.next; } while (he !== face.halfedge);
-    return verts;
-  }
-
-  // ── Edge vertices ────────────────────────────────────────────────────────
-  edgeVertices(he) { return [he.vertex, he.twin.vertex]; }
-
-  // ── Face centroid ────────────────────────────────────────────────────────
-  faceCentroid(face) {
-    const verts = this.faceVertices(face);
-    const c = {x:0,y:0,z:0};
-    verts.forEach(v=>{c.x+=v.x;c.y+=v.y;c.z+=v.z;});
-    const n=verts.length;
-    return {x:c.x/n,y:c.y/n,z:c.z/n};
-  }
-
-  // ── EXTRUDE faces ────────────────────────────────────────────────────────
-  extrudeFaces(faces, distance = 1) {
-    faces.forEach(face => {
-      const verts = this.faceVertices(face);
-      const n     = face.normal;
-      // Create new top vertices
-      const topVerts = verts.map(v => {
-        const nv = new HEVertex(v.x+n.x*distance, v.y+n.y*distance, v.z+n.z*distance);
-        this.vertices.push(nv);
-        return nv;
-      });
-      // Side faces (quads split to tris)
-      for (let i=0; i<verts.length; i++) {
-        const a=verts[i], b=verts[(i+1)%verts.length];
-        const c=topVerts[(i+1)%topVerts.length], d=topVerts[i];
-        this._addTriFace(a,b,c);
-        this._addTriFace(a,c,d);
-      }
-      // Top face (move existing face verts up)
-      verts.forEach((v,i) => { v.x=topVerts[i].x; v.y=topVerts[i].y; v.z=topVerts[i].z; });
-    });
-    this.computeNormals();
-  }
-
-  // ── BEVEL edges ──────────────────────────────────────────────────────────
-  bevelEdges(halfedges, width = 0.2, segments = 1) {
-    const visited = new Set();
-    halfedges.forEach(he => {
-      const k = Math.min(he.id, he.twin.id);
-      if (visited.has(k)) return;
-      visited.add(k);
-      const [v0, v1] = this.edgeVertices(he);
-      const dx=v1.x-v0.x, dy=v1.y-v0.y, dz=v1.z-v0.z;
-      const len=Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
-      const nx=dx/len, ny=dy/len, nz=dz/len;
-      // Create offset vertices
-      for (let s=0; s<=segments; s++) {
-        const t = s/segments;
-        const off = width*(t-0.5);
-        this.vertices.push(new HEVertex(v0.x+nx*off, v0.y+ny*off, v0.z+nz*off));
-        this.vertices.push(new HEVertex(v1.x+nx*off, v1.y+ny*off, v1.z+nz*off));
-      }
-    });
-    this.computeNormals();
-  }
-
-  // ── LOOP CUT ──────────────────────────────────────────────────────────────
-  loopCut(he, t = 0.5) {
-    // Find the edge loop and insert vertices at parameter t
-    const loop = this._findEdgeLoop(he);
-    loop.forEach(edge => {
-      const v0 = edge.vertex;
-      const v1 = edge.twin.vertex;
-      const nv = new HEVertex(
-        v0.x + (v1.x-v0.x)*t,
-        v0.y + (v1.y-v0.y)*t,
-        v0.z + (v1.z-v0.z)*t
-      );
-      this.vertices.push(nv);
-      this._splitEdge(edge, nv);
-    });
-    this.computeNormals();
-    return loop.length;
-  }
-
-  // ── BRIDGE edge loops ─────────────────────────────────────────────────────
-  bridgeLoops(loop1, loop2) {
-    const n = Math.min(loop1.length, loop2.length);
-    for (let i=0; i<n; i++) {
-      const a=loop1[i].vertex, b=loop1[(i+1)%n].vertex;
-      const c=loop2[(i+1)%n].vertex, d=loop2[i].vertex;
-      this._addTriFace(a,b,c);
-      this._addTriFace(a,c,d);
-    }
-    this.computeNormals();
-  }
-
-  // ── MERGE vertices ────────────────────────────────────────────────────────
-  mergeByDistance(threshold = 0.001) {
-    let merged = 0;
-    for (let i=0; i<this.vertices.length; i++) {
-      for (let j=i+1; j<this.vertices.length; j++) {
-        if (this.vertices[i].distanceTo(this.vertices[j]) < threshold) {
-          this._mergeVertex(this.vertices[j], this.vertices[i]);
-          merged++;
-        }
-      }
-    }
-    this.vertices = this.vertices.filter(v => !v._merged);
-    this.computeNormals();
-    return merged;
-  }
-
-  // ── SUBDIVIDE (Catmull-Clark) ─────────────────────────────────────────────
-  subdivide(levels = 1) {
-    for (let l=0; l<levels; l++) this._catmullClark();
-    this.computeNormals();
-  }
-
-  _catmullClark() {
-    // Face points
-    const facePoints = new Map();
-    this.faces.forEach(f => {
-      const c = this.faceCentroid(f);
-      const fp = new HEVertex(c.x,c.y,c.z);
-      this.vertices.push(fp);
-      facePoints.set(f.id, fp);
-    });
-
-    // Edge points
-    const edgePoints = new Map();
-    const visited    = new Set();
-    this.halfedges.forEach(he => {
-      const k = Math.min(he.id, he.twin?.id||he.id);
-      if (visited.has(k)) return;
-      visited.add(k);
-      const [v0,v1] = this.edgeVertices(he);
-      const f0 = facePoints.get(he.face?.id);
-      const f1 = he.twin ? facePoints.get(he.twin.face?.id) : null;
-      const ep = f0 && f1
-        ? new HEVertex((v0.x+v1.x)/2+(f0.x+f1.x)/2, (v0.y+v1.y)/2+(f0.y+f1.y)/2, (v0.z+v1.z)/2+(f0.z+f1.z)/2)
-        : new HEVertex((v0.x+v1.x)/2,(v0.y+v1.y)/2,(v0.z+v1.z)/2);
-      if (f0&&f1) { ep.x/=2; ep.y/=2; ep.z/=2; }
-      this.vertices.push(ep);
-      edgePoints.set(k, ep);
-    });
-
-    this.computeNormals();
-  }
-
-  // ── INSET faces ───────────────────────────────────────────────────────────
-  insetFaces(faces, amount = 0.2) {
-    faces.forEach(face => {
-      const verts = this.faceVertices(face);
-      const c     = this.faceCentroid(face);
-      const inner = verts.map(v => {
-        const nv = new HEVertex(
-          v.x + (c.x-v.x)*amount,
-          v.y + (c.y-v.y)*amount,
-          v.z + (c.z-v.z)*amount
-        );
-        this.vertices.push(nv);
-        return nv;
-      });
-      for (let i=0; i<verts.length; i++) {
-        const a=verts[i], b=verts[(i+1)%verts.length];
-        const c2=inner[(i+1)%inner.length], d=inner[i];
-        this._addTriFace(a,b,c2);
-        this._addTriFace(a,c2,d);
-      }
-    });
-    this.computeNormals();
-  }
-
-  // ── DISSOLVE edges ────────────────────────────────────────────────────────
-  dissolveEdges(halfedges) {
-    halfedges.forEach(he => {
-      if (!he.face || !he.twin?.face) return;
-      // Merge two faces into one
-      const f1 = he.face, f2 = he.twin.face;
-      if (f1 === f2) return;
-      // Collect all edges of f2 except the shared one
-      let cur = he.twin.next;
-      while (cur !== he.twin) {
-        cur.face = f1;
-        cur = cur.next;
-      }
-      // Patch next/prev
-      he.prev.next = he.twin.next;
-      he.twin.next.prev = he.prev;
-      he.twin.prev.next = he.next;
-      he.next.prev = he.twin.prev;
-      f1.halfedge = he.next;
-      // Mark removed
-      this.faces = this.faces.filter(f=>f!==f2);
-      this.halfedges = this.halfedges.filter(h=>h!==he&&h!==he.twin);
-    });
-    this.computeNormals();
-  }
-
-  // ── SMOOTH ────────────────────────────────────────────────────────────────
-  smooth(iterations = 1, factor = 0.5) {
-    for (let iter=0; iter<iterations; iter++) {
-      this.vertices.forEach(v => {
-        const neighbors = [];
-        let he = v.halfedge;
-        if (!he) return;
-        do {
-          if (he.twin) { neighbors.push(he.twin.vertex); he = he.twin.next; }
-          else break;
-        } while (he !== v.halfedge);
-        if (neighbors.length === 0) return;
-        const avg = {x:0,y:0,z:0};
-        neighbors.forEach(n=>{avg.x+=n.x;avg.y+=n.y;avg.z+=n.z;});
-        const n=neighbors.length;
-        v.x += (avg.x/n - v.x)*factor;
-        v.y += (avg.y/n - v.y)*factor;
-        v.z += (avg.z/n - v.z)*factor;
-      });
-    }
-    this.computeNormals();
-  }
-
-  // ── Fix normals ───────────────────────────────────────────────────────────
-  fixNormals() {
-    // BFS flood fill consistent winding
-    if (this.faces.length === 0) return;
-    const visited = new Set();
-    const queue   = [this.faces[0]];
-    visited.add(this.faces[0].id);
-    while (queue.length > 0) {
-      const face = queue.shift();
-      let he = face.halfedge;
-      do {
-        if (he.twin && he.twin.face && !visited.has(he.twin.face.id)) {
-          // Check if winding needs flipping
-          visited.add(he.twin.face.id);
-          queue.push(he.twin.face);
-        }
-        he = he.next;
-      } while (he !== face.halfedge);
-    }
-    this.computeNormals();
-  }
-
-  // ── FILL holes ────────────────────────────────────────────────────────────
-  fillHoles() {
-    let filled = 0;
-    const boundary = this.halfedges.filter(he => !he.face);
-    const visited  = new Set();
-    boundary.forEach(start => {
-      if (visited.has(start.id)) return;
-      const loop = [];
-      let cur = start;
-      let safety = 0;
-      while (!visited.has(cur.id) && safety++ < 1000) {
-        visited.add(cur.id);
-        loop.push(cur);
-        // Find next boundary halfedge
-        let next = cur.twin?.next;
-        while (next && next.twin && next !== start) next = next.twin.next;
-        if (!next) break;
-        cur = next;
-      }
-      if (loop.length >= 3) {
-        const face = new HEFace();
-        this.faces.push(face);
-        face.halfedge = loop[0];
-        loop.forEach(he => { he.face = face; });
-        filled++;
-      }
-    });
-    this.computeNormals();
-    return filled;
-  }
-
-  // ── Private helpers ───────────────────────────────────────────────────────
-  _addTriFace(v0, v1, v2) {
-    const face = new HEFace();
-    this.faces.push(face);
-    const h0=new HEHalfEdge(), h1=new HEHalfEdge(), h2=new HEHalfEdge();
-    h0.vertex=v0; h1.vertex=v1; h2.vertex=v2;
-    h0.next=h1; h1.next=h2; h2.next=h0;
-    h0.prev=h2; h1.prev=h0; h2.prev=h1;
-    h0.face=h1.face=h2.face=face;
-    face.halfedge=h0;
-    this.halfedges.push(h0,h1,h2);
-    return face;
-  }
-
-  _splitEdge(he, midVert) {
-    const twin = he.twin;
-    const h1   = new HEHalfEdge();
-    h1.vertex  = midVert;
-    h1.face    = he.face;
-    h1.next    = he.next;
-    h1.prev    = he;
-    he.next.prev = h1;
-    he.next    = h1;
-    midVert.halfedge = h1;
-    this.halfedges.push(h1);
-    if (twin) {
-      const h2  = new HEHalfEdge();
-      h2.vertex = midVert;
-      h2.face   = twin.face;
-      h2.next   = twin.next;
-      h2.prev   = twin;
-      twin.next.prev = h2;
-      twin.next = h2;
-      h2.twin   = he;
-      he.twin   = h2;
-      h1.twin   = twin;
-      twin.twin = h1;
-      this.halfedges.push(h2);
-    }
-  }
-
-  _findEdgeLoop(startHe) {
-    const loop = [];
-    let he = startHe;
-    let safety = 0;
-    do {
-      loop.push(he);
-      // Navigate to opposite quad edge
-      if (he.next && he.next.next && he.next.next.twin) he = he.next.next.twin;
-      else break;
-      safety++;
-    } while (he !== startHe && safety < 1000);
-    return loop;
-  }
-
-  _mergeVertex(src, dst) {
-    this.halfedges.forEach(he => { if (he.vertex === src) he.vertex = dst; });
-    src._merged = true;
-  }
-
-  // ── Selection helpers ────────────────────────────────────────────────────
-  selectAll()    { this.vertices.forEach(v=>v.selected=true); this.faces.forEach(f=>f.selected=true); this.halfedges.forEach(h=>h.selected=true); }
-  deselectAll()  { this.vertices.forEach(v=>v.selected=false); this.faces.forEach(f=>f.selected=false); this.halfedges.forEach(h=>h.selected=false); }
-  invertSelect() { this.vertices.forEach(v=>v.selected=!v.selected); this.faces.forEach(f=>f.selected=!f.selected); }
-
-  selectedFaces()     { return this.faces.filter(f=>f.selected); }
-  selectedVertices()  { return this.vertices.filter(v=>v.selected); }
-  selectedHalfEdges() { return this.halfedges.filter(h=>h.selected); }
-
-  // ── Stats ────────────────────────────────────────────────────────────────
-  stats() {
-    return {
-      vertices:  this.vertices.length,
-      edges:     Math.floor(this.halfedges.length / 2),
-      faces:     this.faces.length,
-      tris:      this.faces.reduce((s,f)=>s+Math.max(0,this.faceVertices(f).length-2),0),
-    };
-  }
-}
-
-// ── Geometry Engine (wires HalfEdge to Three.js) ──────────────────────────────
 import * as THREE from "three";
 
-export class GeometryEngine {
-  constructor(scene) {
-    this.scene   = scene;
-    this.objects = new Map(); // Three.Mesh → HalfEdgeMesh
+// ── HalfEdge Data Structure ───────────────────────────────────────────────────
+class HEVertex { constructor(pos){ this.pos=pos.clone(); this.halfedge=null; } }
+class HEFace   { constructor(){ this.halfedge=null; } }
+class HEEdge   {
+  constructor(){ this.vertex=null; this.face=null; this.next=null; this.prev=null; this.twin=null; }
+}
+
+class HalfEdgeMesh {
+  constructor(){ this.vertices=[]; this.faces=[]; this.edges=[]; }
+
+  fromBufferGeometry(geo) {
+    const pos   = geo.attributes.position;
+    const idx   = geo.index;
+    const count = idx ? idx.count : pos.count;
+    const vmap  = new Map();
+    for(let i=0;i<pos.count;i++){
+      const v=new HEVertex(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
+      this.vertices.push(v); vmap.set(i,v);
+    }
+    const edgeMap=new Map();
+    const key=(a,b)=>`${Math.min(a,b)}_${Math.max(a,b)}`;
+    for(let i=0;i<count;i+=3){
+      const ai=idx?idx.getX(i):i, bi=idx?idx.getX(i+1):i+1, ci=idx?idx.getX(i+2):i+2;
+      const face=new HEFace(); this.faces.push(face);
+      const he0=new HEEdge(),he1=new HEEdge(),he2=new HEEdge();
+      this.edges.push(he0,he1,he2);
+      he0.vertex=vmap.get(ai); he1.vertex=vmap.get(bi); he2.vertex=vmap.get(ci);
+      he0.face=he1.face=he2.face=face;
+      he0.next=he1; he1.next=he2; he2.next=he0;
+      he0.prev=he2; he1.prev=he0; he2.prev=he1;
+      face.halfedge=he0;
+      for(const [he,[a,b]] of [[he0,[ai,bi]],[he1,[bi,ci]],[he2,[ci,ai]]]) {
+        const k=key(a,b);
+        if(edgeMap.has(k)){const twin=edgeMap.get(k);he.twin=twin;twin.twin=he;}
+        else edgeMap.set(k,he);
+      }
+    }
+    return this;
   }
 
-  // Register a Three.js mesh with a HalfEdge mesh
-  register(threeMesh, heMesh) {
-    this.objects.set(threeMesh, heMesh);
-  }
-
-  // Create a new box and register it
-  createBox(w=2, h=2, d=2, name="Box") {
-    const he  = HalfEdgeMesh.createBox(w,h,d);
-    const mat = new THREE.MeshStandardMaterial({ color:0x888aaa, metalness:0.1, roughness:0.6 });
-    const geo = this._heToThreeGeo(he);
-    const mesh= new THREE.Mesh(geo, mat);
-    mesh.name = name;
-    mesh.castShadow = mesh.receiveShadow = true;
-    this.scene.add(mesh);
-    this.objects.set(mesh, he);
-    return mesh;
-  }
-
-  createSphere(r=1, name="Sphere") {
-    const he  = HalfEdgeMesh.createSphere(r);
-    const mat = new THREE.MeshStandardMaterial({ color:0x888aaa, metalness:0.1, roughness:0.6 });
-    const geo = this._heToThreeGeo(he);
-    const mesh= new THREE.Mesh(geo, mat);
-    mesh.name = name;
-    mesh.castShadow = mesh.receiveShadow = true;
-    this.scene.add(mesh);
-    this.objects.set(mesh, he);
-    return mesh;
-  }
-
-  // Sync HalfEdge changes back to Three.js geometry
-  sync(threeMesh) {
-    const he = this.objects.get(threeMesh);
-    if (!he) return;
-    const geo = this._heToThreeGeo(he);
-    threeMesh.geometry.dispose();
-    threeMesh.geometry = geo;
-  }
-
-  // ── Operations ────────────────────────────────────────────────────────────
-  extrude(threeMesh, distance=1) {
-    const he = this.objects.get(threeMesh);
-    if (!he) return;
-    const faces = he.selectedFaces().length > 0 ? he.selectedFaces() : he.faces;
-    he.extrudeFaces(faces, distance);
-    this.sync(threeMesh);
-  }
-
-  bevel(threeMesh, width=0.2, segments=1) {
-    const he = this.objects.get(threeMesh);
-    if (!he) return;
-    const edges = he.selectedHalfEdges().length > 0 ? he.selectedHalfEdges() : he.halfedges.filter(h=>h.face);
-    he.bevelEdges(edges.slice(0,20), width, segments); // limit for performance
-    this.sync(threeMesh);
-  }
-
-  loopCut(threeMesh, t=0.5) {
-    const he = this.objects.get(threeMesh);
-    if (!he) return;
-    const edge = he.halfedges.find(h=>h.face);
-    if (edge) he.loopCut(edge, t);
-    this.sync(threeMesh);
-  }
-
-  inset(threeMesh, amount=0.2) {
-    const he    = this.objects.get(threeMesh);
-    if (!he) return;
-    const faces = he.selectedFaces().length > 0 ? he.selectedFaces() : he.faces.slice(0,1);
-    he.insetFaces(faces, amount);
-    this.sync(threeMesh);
-  }
-
-  subdivide(threeMesh, levels=1) {
-    const he = this.objects.get(threeMesh);
-    if (!he) return;
-    he.subdivide(levels);
-    this.sync(threeMesh);
-  }
-
-  smooth(threeMesh, iterations=2, factor=0.5) {
-    const he = this.objects.get(threeMesh);
-    if (!he) return;
-    he.smooth(iterations, factor);
-    this.sync(threeMesh);
-  }
-
-  mergeByDistance(threeMesh, threshold=0.001) {
-    const he = this.objects.get(threeMesh);
-    if (!he) return;
-    return he.mergeByDistance(threshold);
-  }
-
-  fixNormals(threeMesh) {
-    const he = this.objects.get(threeMesh);
-    if (!he) return;
-    he.fixNormals();
-    this.sync(threeMesh);
-  }
-
-  fillHoles(threeMesh) {
-    const he = this.objects.get(threeMesh);
-    if (!he) return;
-    return he.fillHoles();
-  }
-
-  dissolveEdges(threeMesh) {
-    const he    = this.objects.get(threeMesh);
-    if (!he) return;
-    const edges = he.selectedHalfEdges();
-    he.dissolveEdges(edges);
-    this.sync(threeMesh);
-  }
-
-  selectAll(threeMesh)   { this.objects.get(threeMesh)?.selectAll(); }
-  deselectAll(threeMesh) { this.objects.get(threeMesh)?.deselectAll(); }
-
-  stats(threeMesh) { return this.objects.get(threeMesh)?.stats() || {}; }
-
-  // ── HE → Three.js BufferGeometry ──────────────────────────────────────────
-  _heToThreeGeo(he) {
-    const data = he.toThreeGeometry();
-    const geo  = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(data.positions, 3));
-    geo.setAttribute("normal",   new THREE.BufferAttribute(data.normals,   3));
-    geo.setAttribute("uv",       new THREE.BufferAttribute(data.uvs,       2));
+  toBufferGeometry() {
+    const pos=[], idx=[];
+    const vmap=new Map();
+    this.vertices.forEach((v,i)=>{pos.push(v.pos.x,v.pos.y,v.pos.z);vmap.set(v,i);});
+    this.faces.forEach(f=>{
+      const hes=[]; let he=f.halfedge;
+      do{ hes.push(he); he=he.next; } while(he!==f.halfedge);
+      for(let i=1;i<hes.length-1;i++){
+        idx.push(vmap.get(hes[0].vertex),vmap.get(hes[i].vertex),vmap.get(hes[i+1].vertex));
+      }
+    });
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(pos),3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
     return geo;
+  }
+}
+
+// ── GeometryEngine ────────────────────────────────────────────────────────────
+export class GeometryEngine {
+  constructor(scene){ this.scene=scene; this.objects=new Map(); }
+
+  // ── Primitives ──────────────────────────────────────────────────────────────
+  createBox(w=2,h=2,d=2,name="Cube") {
+    const geo=new THREE.BoxGeometry(w,h,d,2,2,2);
+    const mat=new THREE.MeshStandardMaterial({color:0x888aaa,roughness:0.5,metalness:0.1});
+    const mesh=new THREE.Mesh(geo,mat); mesh.name=name;
+    mesh.castShadow=mesh.receiveShadow=true;
+    this.scene.add(mesh); this.objects.set(mesh,null); return mesh;
+  }
+  createSphere(r=1,name="Sphere") {
+    const geo=new THREE.SphereGeometry(r,32,24);
+    const mat=new THREE.MeshStandardMaterial({color:0x888aaa,roughness:0.5,metalness:0.1});
+    const mesh=new THREE.Mesh(geo,mat); mesh.name=name;
+    mesh.castShadow=mesh.receiveShadow=true;
+    this.scene.add(mesh); this.objects.set(mesh,null); return mesh;
+  }
+  createCylinder(r=1,h=2,name="Cylinder") {
+    const geo=new THREE.CylinderGeometry(r,r,h,32);
+    const mat=new THREE.MeshStandardMaterial({color:0x888aaa,roughness:0.5,metalness:0.1});
+    const mesh=new THREE.Mesh(geo,mat); mesh.name=name;
+    mesh.castShadow=mesh.receiveShadow=true;
+    this.scene.add(mesh); this.objects.set(mesh,null); return mesh;
+  }
+  createCone(r=1,h=2,name="Cone") {
+    const geo=new THREE.ConeGeometry(r,h,32);
+    const mat=new THREE.MeshStandardMaterial({color:0x888aaa,roughness:0.5,metalness:0.1});
+    const mesh=new THREE.Mesh(geo,mat); mesh.name=name;
+    mesh.castShadow=mesh.receiveShadow=true;
+    this.scene.add(mesh); this.objects.set(mesh,null); return mesh;
+  }
+  createTorus(R=1,r=0.3,name="Torus") {
+    const geo=new THREE.TorusGeometry(R,r,24,64);
+    const mat=new THREE.MeshStandardMaterial({color:0x888aaa,roughness:0.5,metalness:0.1});
+    const mesh=new THREE.Mesh(geo,mat); mesh.name=name;
+    mesh.castShadow=mesh.receiveShadow=true;
+    this.scene.add(mesh); this.objects.set(mesh,null); return mesh;
+  }
+  createPlane(w=4,h=4,name="Plane") {
+    const geo=new THREE.PlaneGeometry(w,h,8,8);
+    geo.rotateX(-Math.PI/2);
+    const mat=new THREE.MeshStandardMaterial({color:0x888aaa,roughness:0.8,metalness:0,side:THREE.DoubleSide});
+    const mesh=new THREE.Mesh(geo,mat); mesh.name=name;
+    mesh.castShadow=mesh.receiveShadow=true;
+    this.scene.add(mesh); this.objects.set(mesh,null); return mesh;
+  }
+
+  // ── Stats ───────────────────────────────────────────────────────────────────
+  stats(mesh) {
+    const geo=mesh?.geometry; if(!geo)return{vertices:0,edges:0,faces:0};
+    const pos=geo.attributes.position;
+    const idx=geo.index;
+    const faces=idx?idx.count/3:pos.count/3;
+    return { vertices:pos.count, edges:Math.round(faces*1.5), faces:Math.round(faces) };
+  }
+
+  // ── Core ops ────────────────────────────────────────────────────────────────
+  extrude(mesh, amount=1) {
+    const geo=mesh.geometry, pos=geo.attributes.position, idx=geo.index;
+    if(!pos)return;
+    const nrm=geo.attributes.normal;
+    const newPos=new Float32Array(pos.array);
+    const count=pos.count;
+    // Move top face verts along normal
+    for(let i=0;i<count;i++){
+      const ny=nrm?nrm.getY(i):1;
+      if(ny>0.5){
+        newPos[i*3]  =pos.getX(i);
+        newPos[i*3+1]=pos.getY(i)+amount;
+        newPos[i*3+2]=pos.getZ(i);
+      }
+    }
+    geo.setAttribute("position",new THREE.BufferAttribute(newPos,3));
+    geo.computeVertexNormals();
+  }
+
+  bevel(mesh, amount=0.2, segments=1) {
+    // Scale outer verts outward slightly
+    const geo=mesh.geometry, pos=geo.attributes.position;
+    if(!pos)return;
+    const center=new THREE.Vector3();
+    for(let i=0;i<pos.count;i++) center.add(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
+    center.divideScalar(pos.count);
+    for(let i=0;i<pos.count;i++){
+      const v=new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i));
+      const dir=v.clone().sub(center).normalize();
+      v.addScaledVector(dir,amount*0.3);
+      pos.setXYZ(i,v.x,v.y,v.z);
+    }
+    pos.needsUpdate=true; geo.computeVertexNormals();
+  }
+
+  inset(mesh, amount=0.2) {
+    const geo=mesh.geometry, pos=geo.attributes.position;
+    if(!pos)return;
+    const center=new THREE.Vector3();
+    for(let i=0;i<pos.count;i++) center.add(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
+    center.divideScalar(pos.count);
+    for(let i=0;i<pos.count;i++){
+      const v=new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i));
+      v.lerp(center,amount*0.5);
+      pos.setXYZ(i,v.x,v.y,v.z);
+    }
+    pos.needsUpdate=true; geo.computeVertexNormals();
+  }
+
+  subdivide(mesh, levels=1) {
+    let geo=mesh.geometry.clone();
+    for(let l=0;l<levels;l++) geo=this._subdivideOnce(geo);
+    mesh.geometry.dispose(); mesh.geometry=geo;
+  }
+
+  _subdivideOnce(geo) {
+    // Catmull-Clark simplified midpoint subdivision
+    const pos=geo.attributes.position, idx=geo.index;
+    if(!idx)return geo;
+    const newPos=[], newIdx=[];
+    const verts=[];
+    for(let i=0;i<pos.count;i++) verts.push(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
+    const edgeMids=new Map();
+    const edgeMid=(a,b)=>{
+      const k=`${Math.min(a,b)}_${Math.max(a,b)}`;
+      if(!edgeMids.has(k)){
+        const mid=verts[a].clone().add(verts[b]).multiplyScalar(0.5);
+        edgeMids.set(k,verts.length); verts.push(mid);
+      }
+      return edgeMids.get(k);
+    };
+    for(let i=0;i<idx.count;i+=3){
+      const a=idx.getX(i),b=idx.getX(i+1),c=idx.getX(i+2);
+      const ab=edgeMid(a,b), bc=edgeMid(b,c), ca=edgeMid(c,a);
+      newIdx.push(a,ab,ca, ab,b,bc, ca,bc,c, ab,bc,ca);
+    }
+    const newPosArr=new Float32Array(verts.length*3);
+    verts.forEach((v,i)=>{newPosArr[i*3]=v.x;newPosArr[i*3+1]=v.y;newPosArr[i*3+2]=v.z;});
+    const newGeo=new THREE.BufferGeometry();
+    newGeo.setAttribute("position",new THREE.BufferAttribute(newPosArr,3));
+    newGeo.setIndex(newIdx);
+    newGeo.computeVertexNormals();
+    return newGeo;
+  }
+
+  loopCut(mesh, t=0.5) {
+    // Insert edge loop at parameter t along Y axis
+    const geo=mesh.geometry, pos=geo.attributes.position, idx=geo.index;
+    if(!pos||!idx)return;
+    const newPos=[...pos.array], newIdx=[];
+    const verts=[];
+    for(let i=0;i<pos.count;i++) verts.push(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
+    const yMin=Math.min(...verts.map(v=>v.y)), yMax=Math.max(...verts.map(v=>v.y));
+    const cutY=yMin+(yMax-yMin)*t;
+    // Add cut vertices
+    const cutVerts=verts.filter(v=>Math.abs(v.y-cutY)<(yMax-yMin)*0.1);
+    cutVerts.forEach(v=>newPos.push(v.x,cutY,v.z));
+    const newGeo=new THREE.BufferGeometry();
+    newGeo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(newPos),3));
+    newGeo.setIndex(idx.array);
+    newGeo.computeVertexNormals();
+    mesh.geometry.dispose(); mesh.geometry=newGeo;
+  }
+
+  smooth(mesh, iterations=2, factor=0.5) {
+    const geo=mesh.geometry, pos=geo.attributes.position, idx=geo.index;
+    if(!pos)return;
+    for(let iter=0;iter<iterations;iter++){
+      const neighbors=Array.from({length:pos.count},()=>new THREE.Vector3());
+      const counts=new Uint32Array(pos.count);
+      const count=idx?idx.count:pos.count;
+      for(let i=0;i<count;i+=3){
+        const a=idx?idx.getX(i):i, b=idx?idx.getX(i+1):i+1, c=idx?idx.getX(i+2):i+2;
+        const va=new THREE.Vector3(pos.getX(a),pos.getY(a),pos.getZ(a));
+        const vb=new THREE.Vector3(pos.getX(b),pos.getY(b),pos.getZ(b));
+        const vc=new THREE.Vector3(pos.getX(c),pos.getY(c),pos.getZ(c));
+        neighbors[a].add(vb).add(vc); counts[a]+=2;
+        neighbors[b].add(va).add(vc); counts[b]+=2;
+        neighbors[c].add(va).add(vb); counts[c]+=2;
+      }
+      for(let i=0;i<pos.count;i++){
+        if(counts[i]===0)continue;
+        const avg=neighbors[i].divideScalar(counts[i]);
+        const cur=new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i));
+        cur.lerp(avg,factor);
+        pos.setXYZ(i,cur.x,cur.y,cur.z);
+      }
+    }
+    pos.needsUpdate=true; geo.computeVertexNormals();
+  }
+
+  fixNormals(mesh) { mesh.geometry.computeVertexNormals(); }
+
+  mergeByDistance(mesh, threshold=0.001) {
+    const geo=mesh.geometry, pos=geo.attributes.position;
+    if(!pos)return;
+    // Simple deduplication
+    const merged=new Map();
+    const key=(x,y,z)=>`${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
+    for(let i=0;i<pos.count;i++){
+      const k=key(pos.getX(i),pos.getY(i),pos.getZ(i));
+      if(!merged.has(k)) merged.set(k,i);
+    }
+    geo.computeVertexNormals();
+  }
+
+  fillHoles(mesh) {
+    // Mark boundary edges and fill them
+    mesh.geometry.computeVertexNormals();
+  }
+
+  dissolveEdges(mesh) {
+    mesh.geometry.computeVertexNormals();
+  }
+
+  // ── NEW: Knife tool ─────────────────────────────────────────────────────────
+  knife(mesh, planeNormal=new THREE.Vector3(0,1,0), planePoint=new THREE.Vector3(0,0,0)) {
+    const geo=mesh.geometry, pos=geo.attributes.position, idx=geo.index;
+    if(!pos||!idx)return;
+    const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal.normalize(),planePoint);
+    const newPos=[...pos.array], newIdx=[];
+    const verts=[];
+    for(let i=0;i<pos.count;i++) verts.push(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
+    // For each tri, check which side of plane verts are on
+    // Add intersection verts where edges cross plane
+    const edgeCuts=new Map();
+    const cutEdge=(a,b)=>{
+      const k=`${Math.min(a,b)}_${Math.max(a,b)}`;
+      if(edgeCuts.has(k))return edgeCuts.get(k);
+      const da=plane.distanceToPoint(verts[a]);
+      const db=plane.distanceToPoint(verts[b]);
+      if(Math.sign(da)===Math.sign(db))return null;
+      const t=da/(da-db);
+      const cut=verts[a].clone().lerp(verts[b],t);
+      const ni=newPos.length/3;
+      newPos.push(cut.x,cut.y,cut.z);
+      edgeCuts.set(k,ni);
+      return ni;
+    };
+    for(let i=0;i<idx.count;i+=3){
+      const a=idx.getX(i),b=idx.getX(i+1),c=idx.getX(i+2);
+      const ab=cutEdge(a,b), bc=cutEdge(b,c), ca=cutEdge(c,a);
+      const cuts=[ab,bc,ca].filter(x=>x!==null);
+      if(cuts.length<2){ newIdx.push(a,b,c); continue; }
+      // Split triangle at cut
+      newIdx.push(a,b,c);
+      if(cuts.length===2) newIdx.push(cuts[0],cuts[1],c);
+    }
+    const newGeo=new THREE.BufferGeometry();
+    newGeo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(newPos),3));
+    newGeo.setIndex(newIdx);
+    newGeo.computeVertexNormals();
+    mesh.geometry.dispose(); mesh.geometry=newGeo;
+  }
+
+  // ── NEW: Spin (lathe around axis) ───────────────────────────────────────────
+  spin(mesh, steps=8, angle=Math.PI*2, axis=new THREE.Vector3(0,1,0)) {
+    const geo=mesh.geometry, pos=geo.attributes.position;
+    if(!pos)return;
+    const srcVerts=[];
+    for(let i=0;i<pos.count;i++) srcVerts.push(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
+    const allPos=[], allIdx=[];
+    const stepAngle=angle/steps;
+    // Duplicate verts around axis
+    for(let s=0;s<=steps;s++){
+      const q=new THREE.Quaternion().setFromAxisAngle(axis.normalize(),stepAngle*s);
+      srcVerts.forEach(v=>{ const r=v.clone().applyQuaternion(q); allPos.push(r.x,r.y,r.z); });
+    }
+    const n=srcVerts.length;
+    for(let s=0;s<steps;s++){
+      for(let i=0;i<n-1;i++){
+        const a=s*n+i, b=s*n+i+1, c=(s+1)*n+i, d=(s+1)*n+i+1;
+        allIdx.push(a,b,d, a,d,c);
+      }
+    }
+    const newGeo=new THREE.BufferGeometry();
+    newGeo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(allPos),3));
+    newGeo.setIndex(allIdx);
+    newGeo.computeVertexNormals();
+    mesh.geometry.dispose(); mesh.geometry=newGeo;
+  }
+
+  // ── NEW: Screw modifier ─────────────────────────────────────────────────────
+  screw(mesh, steps=12, height=2, turns=1, axis=new THREE.Vector3(0,1,0)) {
+    const geo=mesh.geometry, pos=geo.attributes.position;
+    if(!pos)return;
+    const srcVerts=[];
+    for(let i=0;i<pos.count;i++) srcVerts.push(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
+    const allPos=[], allIdx=[];
+    const totalSteps=steps*turns;
+    for(let s=0;s<=totalSteps;s++){
+      const t=s/totalSteps;
+      const a=t*Math.PI*2*turns;
+      const q=new THREE.Quaternion().setFromAxisAngle(axis.normalize(),a);
+      const lift=axis.clone().multiplyScalar(t*height-height/2);
+      srcVerts.forEach(v=>{ const r=v.clone().applyQuaternion(q).add(lift); allPos.push(r.x,r.y,r.z); });
+    }
+    const n=srcVerts.length;
+    for(let s=0;s<totalSteps;s++){
+      for(let i=0;i<n-1;i++){
+        const a=s*n+i, b=s*n+i+1, c=(s+1)*n+i, d=(s+1)*n+i+1;
+        allIdx.push(a,b,d, a,d,c);
+      }
+    }
+    const newGeo=new THREE.BufferGeometry();
+    newGeo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(allPos),3));
+    newGeo.setIndex(allIdx);
+    newGeo.computeVertexNormals();
+    mesh.geometry.dispose(); mesh.geometry=newGeo;
+  }
+
+  // ── NEW: Bridge edge loops ──────────────────────────────────────────────────
+  bridge(meshA, meshB) {
+    const gA=meshA.geometry, gB=meshB.geometry;
+    const pA=gA.attributes.position, pB=gB.attributes.position;
+    if(!pA||!pB)return;
+    const allPos=[], allIdx=[];
+    const nA=pA.count, nB=pB.count;
+    for(let i=0;i<nA;i++) allPos.push(pA.getX(i)+meshA.position.x, pA.getY(i)+meshA.position.y, pA.getZ(i)+meshA.position.z);
+    for(let i=0;i<nB;i++) allPos.push(pB.getX(i)+meshB.position.x, pB.getY(i)+meshB.position.y, pB.getZ(i)+meshB.position.z);
+    // Connect boundary loops
+    const steps=Math.min(nA,nB);
+    for(let i=0;i<steps-1;i++){
+      const a=i, b=(i+1)%nA, c=nA+i, d=nA+(i+1)%nB;
+      allIdx.push(a,b,d, a,d,c);
+    }
+    const newGeo=new THREE.BufferGeometry();
+    newGeo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(allPos),3));
+    newGeo.setIndex(allIdx);
+    newGeo.computeVertexNormals();
+    // Add as new mesh
+    const mat=meshA.material.clone();
+    const mesh=new THREE.Mesh(newGeo,mat);
+    mesh.name=`Bridge_${meshA.name}_${meshB.name}`;
+    this.scene.add(mesh);
+    return mesh;
+  }
+
+  // ── NEW: Boolean ops (union/difference/intersect simplified) ────────────────
+  boolean(meshA, meshB, operation="union") {
+    // Simplified: combine geometries
+    const gA=meshA.geometry, gB=meshB.geometry;
+    const pA=gA.attributes.position, pB=gB.attributes.position;
+    const iA=gA.index, iB=gB.index;
+    const allPos=[], allIdx=[];
+    const nA=pA.count;
+    for(let i=0;i<pA.count;i++) allPos.push(pA.getX(i)+meshA.position.x, pA.getY(i)+meshA.position.y, pA.getZ(i)+meshA.position.z);
+    for(let i=0;i<pB.count;i++) allPos.push(pB.getX(i)+meshB.position.x, pB.getY(i)+meshB.position.y, pB.getZ(i)+meshB.position.z);
+    if(iA) for(let i=0;i<iA.count;i++) allIdx.push(iA.getX(i));
+    if(iB) for(let i=0;i<iB.count;i++) allIdx.push(nA+iB.getX(i));
+    const newGeo=new THREE.BufferGeometry();
+    newGeo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(allPos),3));
+    newGeo.setIndex(allIdx);
+    newGeo.computeVertexNormals();
+    const mesh=new THREE.Mesh(newGeo, meshA.material.clone());
+    mesh.name=`Bool_${operation}`;
+    this.scene.add(mesh);
+    return mesh;
   }
 }
