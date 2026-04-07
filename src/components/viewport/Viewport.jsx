@@ -1,10 +1,30 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { GeometryEngine } from "../../mesh/GeometryEngine";
+import { TransformGizmo } from "../../mesh/TransformGizmo";
+import { UndoRedoStack } from "../../mesh/UndoRedoStack";
+import { ClothSimulation } from "../../mesh/ClothSimulation";
+import { ShapeKeySystem } from "../../mesh/ShapeKeySystem";
+import { SnapSystem } from "../../mesh/SnapSystem";
+import { ImportExportEngine } from "../../mesh/ImportExportEngine";
+import { importFBX, exportFBX } from "../../mesh/FBXSupport";
+import { ParticleEngine } from "../../mesh/ParticleSystem";
+import { SPXScriptingAPI, BUILTIN_SCRIPTS } from "../../mesh/SPXScriptingAPI";
+import { CurveSystem } from "../../mesh/CurveSystem";
+import { ModifierSystem } from "../../mesh/ModifierSystem";
+import { TextObject } from "../../mesh/TextObject";
+import { LightLinking } from "../../mesh/LightLinking";
+import { PluginSystem, registerBuiltinPlugins } from "../../mesh/PluginSystem";
+import { MATERIAL_PRESETS, MATERIAL_CATEGORIES, applyMaterialPreset } from "../../mesh/MaterialPresets";
+import { POSE_PRESETS, applyPose } from "../../mesh/PosePresets";
+import { CAMERA_SHOTS, DOF_PRESETS, applyCameraShot } from "../../mesh/CameraPresets";
+import { BRUSH_PRESETS, BRUSH_PRESET_CATEGORIES } from "../../mesh/SculptBrushPresets";
+import { TERRAIN_PRESETS, ALL_TERRAIN_TYPES } from "../../mesh/TerrainPresets";
 import { FilmRendererEngine, SculptEngine } from "../../mesh/FilmRenderer";
 import { SubObjectSelection, SELECT_MODE } from "../../mesh/SubObjectSelection";
 import { RiggingEngine } from "../../mesh/RiggingEngine";
 import { FilmQualityRenderer as FilmQualityEngine } from "../../mesh/FilmQualityEngine";
+import { PathTracerEngine, FilmCamera } from "../../mesh/PathTracerEngine";
 
 const NEAR=0.01, FAR=10000, FOV=60;
 
@@ -92,7 +112,7 @@ export default function Viewport(props) {
     sun.position.set(5,10,5); sun.castShadow=true;
     sun.shadow.mapSize.width=sun.shadow.mapSize.height=2048;
     sun.shadow.radius=4; scene.add(sun);
-    scene.add(Object.assign(new THREE.DirectionalLight(0x8899ff,0.3),{position:new THREE.Vector3(-5,3,-5)}));
+    scene.add((() => { const l = new THREE.DirectionalLight(0x8899ff,0.3); l.position.set(-5,3,-5); return l; })());
 
     const eng      = new GeometryEngine(scene);
     const filmEng  = new FilmRendererEngine(renderer, scene, cam);

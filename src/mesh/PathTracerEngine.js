@@ -11,9 +11,6 @@ import {
   BlurredEnvMapGenerator,
   GradientEquirectTexture,
   ShapedAreaLight,
-  PhysicalCamera,
-  DepthOfFieldShader,
-  IESLoader,
 } from "three-gpu-pathtracer";
 
 // ── Path Tracer Engine ─────────────────────────────────────────────────────────
@@ -71,7 +68,7 @@ export class PathTracerEngine {
   async updateScene() {
     if (!this.ptRenderer) return;
     try {
-      await this.ptRenderer.setScene(this.scene, this.camera);
+      // scene update handled by WebGLPathTracer
       this.reset();
     } catch(e) {
       console.warn("PathTracer scene update failed:", e.message);
