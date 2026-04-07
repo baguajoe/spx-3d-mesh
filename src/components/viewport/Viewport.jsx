@@ -88,8 +88,8 @@ export default function Viewport(props) {
     const el = mountRef.current; if (!el) return;
     const renderer = new THREE.WebGLRenderer({ antialias:true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-    const w = el.clientWidth || el.parentElement?.clientWidth || window.innerWidth - 580;
-    const h = el.clientHeight || el.parentElement?.clientHeight || window.innerHeight - 150;
+    const w = el.clientWidth > 0 ? el.clientWidth : (el.parentElement?.clientWidth || 600);
+    const h = el.clientHeight > 0 ? el.clientHeight : (el.parentElement?.clientHeight || 500);
     renderer.setSize(w, h);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -103,8 +103,8 @@ export default function Viewport(props) {
     scene.background = new THREE.Color(0x06060f);
     sceneRef.current = scene;
 
-    const w2 = el.clientWidth || window.innerWidth - 580;
-    const h2 = el.clientHeight || window.innerHeight - 150;
+    const w2 = el.clientWidth > 0 ? el.clientWidth : 600;
+    const h2 = el.clientHeight > 0 ? el.clientHeight : 500;
     const cam = new THREE.PerspectiveCamera(FOV, w2/h2, NEAR, FAR);
     cam.position.set(5,4,8); cam.lookAt(0,0,0);
     camRef.current = cam;
