@@ -165,6 +165,7 @@ export default function Viewport(props) {
 
     const cube = eng.createBox(2,2,2,"DefaultCube");
     cube.position.set(0, 0, 0);
+    cube.position.set(0, 0, 0);
     addOutline(cube); showOutline(cube,true);
     meshesRef.current = [cube];
     selRef.current    = cube;

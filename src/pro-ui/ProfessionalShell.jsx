@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from "react";
 // ── Workspaces ────────────────────────────────────────────────────────────────
 const WORKSPACES = [
   "Modeling", "Sculpt", "UV", "Animation", "Rigging",
-  "Shading", "Rendering", "VFX", "Mocap", "Performance"
+  "Shading", "Rendering", "VFX", "Mocap", "Performance",
 ];
 
 // ── Menu Definitions ──────────────────────────────────────────────────────────
