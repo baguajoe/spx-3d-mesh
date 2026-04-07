@@ -22,6 +22,8 @@ import PathTracerPanel     from "./components/panels/PathTracerPanel";
 import MocapPanel          from "./components/panels/MocapPanel";
 import LeftToolbar         from "./components/panels/LeftToolbar";
 import PreferencesPanel    from "./components/panels/PreferencesPanel";
+import GraphEditor         from "./components/panels/GraphEditor";
+import GreasePencilAnimator from "./components/panels/GreasePencilAnimator";
 import SimulationPanel     from "./components/panels/SimulationPanel";
 import ParticlePanel       from "./components/panels/ParticlePanel";
 import CompositingPanel    from "./components/panels/CompositingPanel";
@@ -86,6 +88,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "compositing":return <CompositingPanel onAction={onAction}/>;
     case "nla":        return <NLAEditor onAction={onAction}/>;
     case "preferences":return <PreferencesPanel onAction={onAction}/>;
+    case "grapheditor": return <GraphEditor/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -93,7 +96,9 @@ function RightPanel({ panel, onAction, selectedObject }) {
 function BottomPanel({ panel }) {
   switch(panel) {
     case "sketch":   return <SPXSketch/>;
-    case "nla":      return <NLAEditor onAction={()=>{}}/>;
+    case "nla":         return <NLAEditor onAction={()=>{}}/>;
+    case "grapheditor":  return <GraphEditor/>;
+    case "greasepencil": return <GreasePencilAnimator onExportToScene={(frames)=>console.log('GP export',frames.length)}/>;
     case "timeline": return <Timeline/>;
     default:         return <Timeline/>;
   }
@@ -161,7 +166,11 @@ export default function App() {
       case "openCompositing":handleSetWorkspace("Compositing"); break;
       case "openNLA":        handleSetWorkspace("NLA");         break;
       case "openPreferences": handleSetWorkspace("Preferences"); break;
-      case "ws_preferences":  handleSetWorkspace("Preferences"); break;
+      case "ws_preferences":  handleSetWorkspace("Preferences");  break;
+      case "ws_grapheditor":  handleSetWorkspace("GraphEditor");  break;
+      case "ws_greasepencil": handleSetWorkspace("GreasePencil"); break;
+      case "openGraphEditor":  handleSetWorkspace("GraphEditor");  break;
+      case "openGreasePencil": handleSetWorkspace("GreasePencil"); break;
       case "filmmat_skin": case "filmmat_hair": case "filmmat_hair_remove":
       case "filmmat_pbr":  case "filmmat_fog":  case "filmmat_fog_remove":
       case "filmmat_lod":  case "filmmat_instanced_foliage": case "filmmat_instanced_clear":

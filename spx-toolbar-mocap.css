@@ -370,3 +370,35 @@
   transform:translate(-50%,-50%);
   z-index:15;
 }
+
+/* ── Graph Editor ────────────────────────────────────────────────────────── */
+.spx-ge-panel  { display:flex; flex-direction:column; height:100%; background:var(--bg); overflow:hidden; }
+.spx-ge-hdr-actions { display:flex; gap:3px; }
+.spx-ge-body   { display:flex; flex:1; overflow:hidden; min-height:0; }
+.spx-ge-channels { width:140px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; padding:4px; gap:2px; overflow-y:auto; }
+.spx-ge-channel { display:flex; align-items:center; gap:4px; padding:3px 4px; border-radius:3px; }
+.spx-ge-channel-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.spx-ge-channel-name { flex:1; font-size:9px; color:var(--text1); font-family:var(--font); }
+.spx-ge-vis-btn { background:transparent; border:none; color:var(--text2); font-size:10px; cursor:pointer; padding:0; line-height:1; }
+.spx-ge-vis-btn--on { color:var(--teal); }
+.spx-ge-canvas { flex:1; background:#06060f; cursor:crosshair; display:block; width:100%; height:100%; }
+.spx-ge-hints  { padding:3px 8px; font-size:8px; color:var(--text2); font-family:var(--font); background:var(--bg2); border-top:1px solid var(--border); flex-shrink:0; }
+.spx-ge-sel-info { display:flex; flex-direction:column; gap:3px; padding:4px; border-top:1px solid var(--border); margin-top:4px; }
+.spx-ge-sel-label { font-size:8px; color:var(--text2); font-family:var(--font); }
+
+/* ── Grease Pencil Animator ───────────────────────────────────────────────── */
+.spx-gp-panel   { display:flex; flex-direction:column; height:100%; background:var(--bg); overflow:hidden; }
+.spx-gp-transport { display:flex; align-items:center; gap:4px; }
+.spx-gp-toolbar { display:flex; align-items:center; gap:4px; padding:4px 8px; background:var(--bg2); border-bottom:1px solid var(--border); flex-wrap:wrap; flex-shrink:0; }
+.spx-gp-slider-wrap { display:flex; align-items:center; gap:4px; }
+.spx-gp-slider-label { font-size:9px; color:var(--text2); font-family:var(--font); }
+.spx-gp-canvas  { flex:1; display:block; width:100%; cursor:crosshair; background:#06060f; }
+.spx-gp-strip   { display:flex; gap:2px; padding:4px; background:var(--bg2); border-top:1px solid var(--border); overflow-x:auto; flex-shrink:0; align-items:center; }
+.spx-gp-frame   { width:28px; height:28px; border:1px solid var(--border2); border-radius:3px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--bg); transition:all 0.1s; flex-shrink:0; position:relative; }
+.spx-gp-frame:hover { border-color:var(--border); background:var(--bg3); }
+.spx-gp-frame--active { border-color:var(--teal); background:rgba(0,255,200,0.08); }
+.spx-gp-frame-num { font-size:8px; color:var(--text2); font-family:var(--font); }
+.spx-gp-frame-dot { width:4px; height:4px; border-radius:50%; background:var(--teal); position:absolute; bottom:2px; }
+.spx-gp-add-frame { width:28px; height:28px; border:1px dashed var(--border2); border-radius:3px; background:transparent; color:var(--text2); font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.1s; flex-shrink:0; }
+.spx-gp-add-frame:hover { color:var(--teal); border-color:rgba(0,255,200,0.4); }
+.spx-gp-actions { display:flex; gap:4px; padding:4px 8px; background:var(--bg2); border-top:1px solid var(--border); flex-shrink:0; }
