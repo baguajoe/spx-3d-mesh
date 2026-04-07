@@ -37,7 +37,9 @@ export default function Viewport(props) {
   const clothRafRef  = useRef(null);
   const particleRef  = useRef(null);
   const [gizmoMode,  setGizmoMode]  = useState("translate");
-  const [undoInfo,   setUndoInfo]   = useState({ canUndo:false, canRedo:false });
+  const [undoInfo,      setUndoInfo]      = useState({ canUndo:false, canRedo:false });
+  const [showSkeleton,  setShowSkeleton]  = useState(false);
+  const skHelperRef = useRef(null);
   const sculpting   = useRef(false);
   const timeRef     = useRef(0);
 
@@ -207,6 +209,25 @@ export default function Viewport(props) {
       else if(fn==="tool_change"){const t=params?.tool;if(t==="move"){gizmoRef.current?.setMode("translate");setGizmoMode("translate");}if(t==="rotate"){gizmoRef.current?.setMode("rotate");setGizmoMode("rotate");}if(t==="scale"){gizmoRef.current?.setMode("scale");setGizmoMode("scale");}}
       else if(fn==="add_prim"){doAddPrim(params?.type||"cube");}
       else if(fn==="create_rig"){doCreateRig();}
+      else if(fn==="show_skeleton"){
+        const scene=sceneRef.current; if(!scene)return;
+        if(skHelperRef.current){scene.remove(skHelperRef.current);skHelperRef.current=null;}
+        const skinned=scene.getObjectByProperty("isSkinnedMesh",true);
+        if(skinned?.skeleton){
+          const h=new THREE.SkeletonHelper(skinned);
+          h.material.linewidth=2;
+          scene.add(h);skHelperRef.current=h;
+          setShowSkeleton(true);setStatus("Skeleton visible");
+        }else{setStatus("No skeleton found — create rig first");}
+      }
+      else if(fn==="hide_skeleton"){
+        if(skHelperRef.current){sceneRef.current?.remove(skHelperRef.current);skHelperRef.current=null;}
+        setShowSkeleton(false);setStatus("Skeleton hidden");
+      }
+      else if(fn==="pref_pixelratio"&&params?.value){rendRef.current?.setPixelRatio(params.value);}
+      else if(fn==="pref_viewport"){
+        if(params?.key==="Show Grid")sceneRef.current?.getObjectByName?.(undefined)?.traverse?.(o=>{if(o.isGridHelper)o.visible=params.value;});
+      }
       // Cloth simulation
       else if(fn==="cloth_create"){clothRef.current?.createCloth(params);setStatus("Cloth created");}
       else if(fn==="cloth_start"){

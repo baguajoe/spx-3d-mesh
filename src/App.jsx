@@ -21,6 +21,7 @@ import FilmMaterialsPanel  from "./components/panels/FilmMaterialsPanel";
 import PathTracerPanel     from "./components/panels/PathTracerPanel";
 import MocapPanel          from "./components/panels/MocapPanel";
 import LeftToolbar         from "./components/panels/LeftToolbar";
+import PreferencesPanel    from "./components/panels/PreferencesPanel";
 import SimulationPanel     from "./components/panels/SimulationPanel";
 import ParticlePanel       from "./components/panels/ParticlePanel";
 import CompositingPanel    from "./components/panels/CompositingPanel";
@@ -84,6 +85,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "particles":  return <ParticlePanel onAction={onAction}/>;
     case "compositing":return <CompositingPanel onAction={onAction}/>;
     case "nla":        return <NLAEditor onAction={onAction}/>;
+    case "preferences":return <PreferencesPanel onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -158,6 +160,8 @@ export default function App() {
       case "openParticles":  handleSetWorkspace("Particles");   break;
       case "openCompositing":handleSetWorkspace("Compositing"); break;
       case "openNLA":        handleSetWorkspace("NLA");         break;
+      case "openPreferences": handleSetWorkspace("Preferences"); break;
+      case "ws_preferences":  handleSetWorkspace("Preferences"); break;
       case "filmmat_skin": case "filmmat_hair": case "filmmat_hair_remove":
       case "filmmat_pbr":  case "filmmat_fog":  case "filmmat_fog_remove":
       case "filmmat_lod":  case "filmmat_instanced_foliage": case "filmmat_instanced_clear":
@@ -167,6 +171,8 @@ export default function App() {
         viewportActionRef.current?.(fn, params);
         if(fn==="particle_create") handleSetWorkspace("Particles");
         break;
+      case "show_skeleton": case "hide_skeleton": case "pref_pixelratio": case "pref_viewport": case "pref_theme": case "pref_units": case "pref_shortcut":
+        viewportActionRef.current?.(fn, params); break;
       case "composite_render": case "comp_preset_film_look": case "comp_preset_bloom_+_glare":
         viewportActionRef.current?.(fn, params); break;
       case "cloth_create": case "cloth_start": case "cloth_stop": case "cloth_reset": case "cloth_wind":
