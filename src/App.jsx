@@ -22,6 +22,9 @@ import PathTracerPanel     from "./components/panels/PathTracerPanel";
 import MocapPanel          from "./components/panels/MocapPanel";
 import LeftToolbar         from "./components/panels/LeftToolbar";
 import SimulationPanel     from "./components/panels/SimulationPanel";
+import ParticlePanel       from "./components/panels/ParticlePanel";
+import CompositingPanel    from "./components/panels/CompositingPanel";
+import NLAEditor           from "./components/panels/NLAEditor";
 import "./styles/spx-shell.css";
 import "./styles/spx-panels.css";
 import "./styles/spx-tools.css";
@@ -78,6 +81,9 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "pathtrace":  return <PathTracerPanel onAction={onAction}/>;
     case "mocap":      return <MocapPanel onAction={onAction}/>;
     case "simulation": return <SimulationPanel onAction={onAction}/>;
+    case "particles":  return <ParticlePanel onAction={onAction}/>;
+    case "compositing":return <CompositingPanel onAction={onAction}/>;
+    case "nla":        return <NLAEditor onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -85,6 +91,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
 function BottomPanel({ panel }) {
   switch(panel) {
     case "sketch":   return <SPXSketch/>;
+    case "nla":      return <NLAEditor onAction={()=>{}}/>;
     case "timeline": return <Timeline/>;
     default:         return <Timeline/>;
   }
@@ -145,9 +152,22 @@ export default function App() {
       case "ws_mocap":       handleSetWorkspace("Mocap");      break;
       case "ws_simulation":  handleSetWorkspace("Simulation"); break;
       case "openSimulation": handleSetWorkspace("Simulation"); break;
+      case "ws_particles":   handleSetWorkspace("Particles");   break;
+      case "ws_compositing": handleSetWorkspace("Compositing"); break;
+      case "ws_nla":         handleSetWorkspace("NLA");         break;
+      case "openParticles":  handleSetWorkspace("Particles");   break;
+      case "openCompositing":handleSetWorkspace("Compositing"); break;
+      case "openNLA":        handleSetWorkspace("NLA");         break;
       case "filmmat_skin": case "filmmat_hair": case "filmmat_hair_remove":
       case "filmmat_pbr":  case "filmmat_fog":  case "filmmat_fog_remove":
       case "filmmat_lod":  case "filmmat_instanced_foliage": case "filmmat_instanced_clear":
+        viewportActionRef.current?.(fn, params); break;
+      case "particle_create": case "particle_start_all": case "particle_stop_all":
+      case "particle_burst": case "particle_clear": case "particle_remove":
+        viewportActionRef.current?.(fn, params);
+        if(fn==="particle_create") handleSetWorkspace("Particles");
+        break;
+      case "composite_render": case "comp_preset_film_look": case "comp_preset_bloom_+_glare":
         viewportActionRef.current?.(fn, params); break;
       case "cloth_create": case "cloth_start": case "cloth_stop": case "cloth_reset": case "cloth_wind":
       case "sk_add": case "sk_set": case "sk_remove": case "sk_facial_preset":

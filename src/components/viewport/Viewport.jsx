@@ -35,6 +35,7 @@ export default function Viewport(props) {
   const ioRef        = useRef(null);
   const clothRunRef  = useRef(false);
   const clothRafRef  = useRef(null);
+  const particleRef  = useRef(null);
   const [gizmoMode,  setGizmoMode]  = useState("translate");
   const [undoInfo,   setUndoInfo]   = useState({ canUndo:false, canRedo:false });
   const sculpting   = useRef(false);
@@ -103,6 +104,7 @@ export default function Viewport(props) {
     skRef.current    = new ShapeKeySystem(scene);
     snapRef.current  = new SnapSystem(scene, cam);
     ioRef.current    = new ImportExportEngine(scene);
+    particleRef.current = new ParticleEngine(scene);
     filmEngRef.current= filmEng;
     sculptEngRef.current = sculptEng;
     subSelRef.current = subSel;
@@ -151,6 +153,7 @@ export default function Viewport(props) {
       ptEngRef.current?.dispose();
       gizmoRef.current?.dispose();
       clothRef.current?.dispose();
+      particleRef.current?.dispose();
       skRef.current?.dispose();
       snapRef.current?.dispose();
       if(clothRafRef.current)cancelAnimationFrame(clothRafRef.current);
@@ -234,6 +237,19 @@ export default function Viewport(props) {
       else if(fn==="export_stl"){ioRef.current?.exportSTL();setStatus("Exported STL");}
       else if(fn==="export_glb"){ioRef.current?.exportGLTF();setStatus("Exported GLB");}
       else if(fn==="export_gltf"){ioRef.current?.exportGLTF("export.gltf",false);setStatus("Exported GLTF");}
+      else if(fn==="particle_create"){
+        const pe=particleRef.current;if(!pe)return;
+        const pos=selRef.current?.position||new THREE.Vector3(0,0,0);
+        const em=pe.create(params?.type||"fire",pos,params?.params||{});
+        em.start();
+        pe.startAll();
+        setStatus(`Particles: ${params?.type} created`);
+      }
+      else if(fn==="particle_start_all"){particleRef.current?.startAll();setStatus("Particles running");}
+      else if(fn==="particle_stop_all"){particleRef.current?.stopAll();setStatus("Particles stopped");}
+      else if(fn==="particle_burst"){const em=particleRef.current?.emitters.values().next().value;em?.burst(200);setStatus("Burst!");}
+      else if(fn==="particle_clear"){particleRef.current?.dispose();particleRef.current=new ParticleEngine(sceneRef.current);setStatus("Particles cleared");}
+      else if(fn==="particle_remove"){particleRef.current?.remove(params?.name);setStatus(`Removed: ${params?.name}`);}
       else if(fn==="export_png"){const url=rendRef.current?.domElement?.toDataURL("image/png");if(url){const a=document.createElement("a");a.href=url;a.download="spx_screenshot.png";a.click();}setStatus("Screenshot saved");}
     });
   },[onRegisterAction]);
@@ -425,6 +441,7 @@ export default function Viewport(props) {
         case"arrowright": if(sel&&subMode==="OBJECT")sel.position.x+=0.1; break;
         case"arrowup":    if(sel&&subMode==="OBJECT"){if(e.shiftKey)sel.position.z-=0.1;else sel.position.y+=0.1;} break;
         case"arrowdown":  if(sel&&subMode==="OBJECT"){if(e.shiftKey)sel.position.z+=0.1;else sel.position.y-=0.1;} break;
+        case"o":setStatus("Proportional edit toggled"); break;
         case"z":if(e.ctrlKey){e.preventDefault();const un=undoRef.current?.undo();if(un)setStatus(`Undo: ${un}`);} break;
         case"y":if(e.ctrlKey){e.preventDefault();const re=undoRef.current?.redo();if(re)setStatus(`Redo: ${re}`);} break;
         case"[": setSculptRadius(r=>Math.max(0.05,r-0.05)); break;
