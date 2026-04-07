@@ -288,6 +288,7 @@ export default function ProfessionalShell({
   setActiveWorkspace,
   activeTool,
   setActiveTool,
+  leftToolbar,
   leftPanel,
   centerPanel,
   rightPanel,
@@ -334,6 +335,7 @@ export default function ProfessionalShell({
 
       {/* Main 3-col */}
       <div className="spx-main">
+        {leftToolbar && <div className="spx-lt-toolbar-wrap">{leftToolbar}</div>}
         <aside className="spx-left">{leftPanel}</aside>
         {leftToolbar && <div className="spx-lt-toolbar-wrap">{leftToolbar}</div>}
 
