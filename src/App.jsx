@@ -90,6 +90,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "preferences":return <PreferencesPanel onAction={onAction}/>;
     case "grapheditor": return <GraphEditor/>;
     case "scripting":   return <ScriptingPanel onAction={onAction}/>;
+    case "matpresets":  return <MaterialPresetsPanel onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -174,6 +175,8 @@ export default function App() {
       case "openGreasePencil": handleSetWorkspace("GreasePencil"); break;
       case "ws_scripting":    handleSetWorkspace("Scripting");   break;
       case "openScripting":   handleSetWorkspace("Scripting");   break;
+      case "openMatPresets": handleSetWorkspace("MatPresets");  break;
+      case "ws_matpresets":  handleSetWorkspace("MatPresets");  break;
       case "filmmat_skin": case "filmmat_hair": case "filmmat_hair_remove":
       case "filmmat_pbr":  case "filmmat_fog":  case "filmmat_fog_remove":
       case "filmmat_lod":  case "filmmat_instanced_foliage": case "filmmat_instanced_clear":
@@ -183,6 +186,7 @@ export default function App() {
         viewportActionRef.current?.(fn, params);
         if(fn==="particle_create") handleSetWorkspace("Particles");
         break;
+      case "mat_preset_apply": viewportActionRef.current?.(fn, params); break;
       case "script_run": case "script_save":
         viewportActionRef.current?.(fn, params); break;
       case "show_skeleton": case "hide_skeleton": case "pref_pixelratio": case "pref_viewport": case "pref_theme": case "pref_units": case "pref_shortcut":

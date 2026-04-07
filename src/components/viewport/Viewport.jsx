@@ -341,6 +341,28 @@ export default function Viewport(props) {
       else if(fn==="light_exclude"){const lights=[];sceneRef.current?.traverse(o=>{if(o.isLight)lights.push(o);});if(lights[0]&&sel)lightLinkRef.current?.exclude(lights[0],[sel]);lightLinkRef.current?.apply();setStatus("Light excluded");}
       // Plugins
       else if(fn==="plugin_list"){console.log(pluginRef.current?.list());setStatus(`${pluginRef.current?.plugins.size} plugins loaded`);}
+      else if(fn==="mat_preset_apply"&&sel){
+        applyMaterialPreset(sel,params?.preset);
+        setStatus(`Material: ${params?.preset}`);
+      }
+      else if(fn==="pose_apply"){
+        const arm=rigEngRef.current?.armatures.values().next().value;
+        if(arm)applyPose(arm,params?.pose);
+        setStatus(`Pose: ${params?.pose}`);
+      }
+      else if(fn==="camera_shot"){
+        applyCameraShot(camRef.current,params?.shot,selRef.current?.position||new THREE.Vector3());
+        setStatus(`Shot: ${params?.shot}`);
+      }
+      else if(fn==="brush_preset"){
+        const preset=BRUSH_PRESETS[params?.preset];
+        if(preset){
+          setSculptBrush(preset.brushType);
+          setSculptRadius(preset.radius);
+          setSculptStrength(preset.strength);
+          setStatus(`Brush: ${params?.preset}`);
+        }
+      }
       else if(fn==="add_text"){textRef.current?.create({text:params?.text||"Text",size:1,depth:0.2,name:params?.name||"Text"}).then(m=>{if(m){meshesRef.current.push(m);addOutline(m);}});}
       else if(fn==="export_png"){const url=rendRef.current?.domElement?.toDataURL("image/png");if(url){const a=document.createElement("a");a.href=url;a.download="spx_screenshot.png";a.click();}setStatus("Screenshot saved");}
     });
