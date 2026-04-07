@@ -25,6 +25,8 @@ export default function Viewport(props) {
   const subSelRef   = useRef(null);
   const rigEngRef   = useRef(null);
   const filmQualRef = useRef(null);
+  const ptEngRef    = useRef(null);
+  const ptActiveRef = useRef(false);
   const sculpting   = useRef(false);
   const timeRef     = useRef(0);
 
@@ -82,6 +84,9 @@ export default function Viewport(props) {
     engRef.current    = eng;
     const filmQual = new FilmQualityEngine(renderer, scene, cam);
     filmQualRef.current = filmQual;
+    const ptEng = new PathTracerEngine(renderer, scene, cam);
+    ptEngRef.current = ptEng;
+    ptEng.init().then(ok => { if(ok) console.log("SPX Path Tracer ready"); });
     filmEngRef.current= filmEng;
     sculptEngRef.current = sculptEng;
     subSelRef.current = subSel;
@@ -109,6 +114,7 @@ export default function Viewport(props) {
         c.lookAt(o.target);
       }
       filmQualRef.current?.update(timeRef.current, dt);
+      if(ptActiveRef.current && ptEngRef.current?._initialized){ ptEngRef.current.render(); }
       filmEng.render(timeRef.current);
     };
     animate();
@@ -125,6 +131,7 @@ export default function Viewport(props) {
       ro.disconnect();
       filmEng.dispose();
       filmQualRef.current?.dispose();
+      ptEngRef.current?.dispose();
       subSel.dispose();
       renderer.dispose();
       if(el.contains(renderer.domElement))el.removeChild(renderer.domElement);
@@ -151,6 +158,26 @@ export default function Viewport(props) {
       else if(fn==="filmmat_lod"&&sel){fq.toLOD(sel);setStatus("LOD applied");}
       else if(fn==="filmmat_instanced_foliage"){fq.createInstancedFoliage(params.type,params.count,params.spread);setStatus(`${params.count} instanced (1 draw call)`);}
       else if(fn==="filmmat_instanced_clear"){fq.instanced.clear(params.type);setStatus("Cleared");}
+      else if(fn==="pt_start"){
+        const pt=ptEngRef.current; if(!pt)return;
+        pt.setFilmQualityPreset(params?.preset||"cinematic");
+        if(params?.maxSamples)pt.maxSamples=params.maxSamples;
+        if(params?.bounces)pt.bounces=params.bounces;
+        if(params?.caustics!==undefined)pt.caustics=params.caustics;
+        if(params?.filterGlossy!==undefined)pt.filterGlossy=params.filterGlossy;
+        if(params?.dof?.enabled){const fc=new FilmCamera(camRef.current,pt);fc.apply(params.dof);}
+        pt.upgradeSceneMaterials();
+        ptActiveRef.current=true;
+        pt.updateScene().then(()=>{pt.reset();setStatus("Path Tracer rendering…");});
+      }
+      else if(fn==="pt_stop"||fn==="pt_disable"){ptActiveRef.current=false;setStatus("Path Tracer stopped — realtime mode");}
+      else if(fn==="pt_enable"){ptActiveRef.current=true;setStatus("Path Tracer active");}
+      else if(fn==="pt_reset"){ptEngRef.current?.reset();setStatus("PT reset");}
+      else if(fn==="pt_sky"){ptEngRef.current?.setGradientSky(params?.top,params?.bottom);}
+      else if(fn==="pt_env_intensity"&&ptEngRef.current){ptEngRef.current.envIntensity=params?.value||1;ptEngRef.current.reset();}
+      else if(fn==="pt_upgrade_materials"){ptEngRef.current?.upgradeSceneMaterials();ptEngRef.current?.updateScene();setStatus("Materials upgraded for PT");}
+      else if(fn==="pt_export_png"){const url=rendRef.current?.domElement?.toDataURL("image/png");if(url){const a=document.createElement("a");a.href=url;a.download="spx_render.png";a.click();}}
+      else if(fn==="pt_get_progress"&&typeof params==="function"){params(ptEngRef.current?.getProgress());}
     });
   },[onRegisterAction]);
 

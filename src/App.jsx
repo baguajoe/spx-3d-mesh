@@ -18,6 +18,7 @@ import FilmRenderPanel     from "./components/panels/FilmRenderPanel";
 import AssetBrowser        from "./components/panels/AssetBrowser";
 import GeometryNodesPanel  from "./components/panels/GeometryNodesPanel";
 import FilmMaterialsPanel  from "./components/panels/FilmMaterialsPanel";
+import PathTracerPanel     from "./components/panels/PathTracerPanel";
 import "./styles/spx-shell.css";
 import "./styles/spx-panels.css";
 import "./styles/spx-tools.css";
@@ -68,6 +69,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "lighting":   return <FilmLightingPanel onAction={onAction}/>;
     case "render":     return <FilmRenderPanel onAction={onAction}/>;
     case "filmmat":    return <FilmMaterialsPanel onAction={onAction}/>;
+    case "pathtrace":  return <PathTracerPanel onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -128,6 +130,8 @@ export default function App() {
       case "ws_geonodes":    handleSetWorkspace("GeoNodes");   break;
       case "ws_filmmat":     handleSetWorkspace("FilmMat");   break;
       case "openFilmMat":    handleSetWorkspace("FilmMat");   break;
+      case "openPathTrace":  handleSetWorkspace("PathTrace"); break;
+      case "ws_pathtrace":   handleSetWorkspace("PathTrace"); break;
       // Generators → switch workspace + forward to viewport
       case "gen_terrain": case "gen_city": case "gen_foliage":
       case "gen_crowd":   case "gen_vehicle":
@@ -138,6 +142,12 @@ export default function App() {
       case "filmmat_pbr": case "filmmat_fog": case "filmmat_fog_remove":
       case "filmmat_lod": case "filmmat_instanced_foliage": case "filmmat_instanced_clear":
         viewportActionRef.current?.(fn, params);
+        break;
+      case "pt_start": case "pt_stop": case "pt_enable": case "pt_disable":
+      case "pt_reset": case "pt_sky": case "pt_env_intensity":
+      case "pt_upgrade_materials": case "pt_export_png": case "pt_get_progress":
+        viewportActionRef.current?.(fn, params);
+        if(fn==="pt_start") handleSetWorkspace("PathTrace");
         break;
       case "gen_clear":
         viewportActionRef.current?.("gen_clear");
