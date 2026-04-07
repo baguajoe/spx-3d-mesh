@@ -33,6 +33,12 @@ body {
 
 /* ── Shell ────────────────────────────────────────────────────────────── */
 .spx-shell {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+  /* original: */
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -247,8 +253,11 @@ body {
 
 /* ── Main 3-col ───────────────────────────────────────────────────────── */
 .spx-main {
-  display: flex;
-  flex: 1;
+  display: flex !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  width: 100% !important;
   width: 100%;
   overflow: hidden;
   overflow: hidden;
@@ -259,7 +268,8 @@ body {
 .spx-left {
   width: 220px;
   min-width: 160px;
-  max-width: 320px;
+  max-width: 220px;
+  flex-shrink: 0 !important;
   background: var(--bg1);
   border-right: 1px solid var(--border);
   display: flex;
@@ -318,7 +328,9 @@ body {
 
 /* ── Center Viewport ──────────────────────────────────────────────────── */
 .spx-center {
-  flex: 1;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
   min-width: 0;
   overflow: hidden;
   width: 0;
@@ -331,8 +343,9 @@ body {
 /* ── Right Panel ──────────────────────────────────────────────────────── */
 .spx-right {
   width: 260px;
-  min-width: 180px;
-  max-width: 400px;
+  min-width: 260px;
+  max-width: 260px;
+  flex-shrink: 0 !important;
   background: var(--bg1);
   border-left: 1px solid var(--border);
   display: flex;
