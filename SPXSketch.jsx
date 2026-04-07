@@ -287,7 +287,7 @@ export default function SPXSketch({ onClose }) {
             <span className="spx-sketch-toolbar-label">Quick Colors</span>
             <div className="spx-sketch-quick-colors">
               {["#00ffc8","#ff6600","#ffffff","#000000","#ff4444","#4488ff","#ffcc00","#44cc44","#cc44cc","#888888"].map(c=>(
-                <button key={c} className={`spx-sketch-qcolor${color===c?" spx-sketch-qcolor--active":""}`} onClick={()=>setColor(c)} ref={el=>{if(el)el.style.background=c;}} />
+                <button key={c} className={`spx-sketch-qcolor${color===c?" spx-sketch-qcolor--active":""}`} onClick={()=>setColor(c)} style={{}} ref={el=>{if(el)el.style.background=c;}} />
               ))}
             </div>
           </div>
@@ -298,9 +298,10 @@ export default function SPXSketch({ onClose }) {
           <div className="spx-sketch-canvas-inner" ref={el=>{if(el){el.style.transform=`translate(${pan.x}px,${pan.y}px) scale(${zoom})`;el.style.transformOrigin="center center";}}}>
             <canvas
               className="spx-sketch-canvas"
-                            onPointerDown={onPointerDown}
+              onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
+              style={{}}
               ref={el=>{canvasRef.current=el;if(el)el.style.cursor=activeTool?.cursor||"crosshair";}}
             />
           </div>

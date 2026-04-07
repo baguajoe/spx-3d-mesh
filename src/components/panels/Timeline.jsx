@@ -1,255 +1,253 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { AnimationEngine, AnimationClip } from "../../mesh/AnimationEngine";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const FPS = 24;
-const DEFAULT_END = 250;
+const DEFAULT_FPS = 24;
+const DEFAULT_END = 120;
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-const IconPlay     = () => <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><polygon points="4,2 14,8 4,14"/></svg>;
-const IconPause    = () => <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></svg>;
-const IconStop     = () => <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><rect x="2" y="2" width="12" height="12"/></svg>;
-const IconFirst    = () => <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><polygon points="12,2 6,8 12,14"/><rect x="2" y="2" width="3" height="12"/></svg>;
-const IconLast     = () => <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><polygon points="4,2 10,8 4,14"/><rect x="11" y="2" width="3" height="12"/></svg>;
-const IconPrevKey  = () => <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><polygon points="10,2 4,8 10,14"/><line x1="12" y1="2" x2="12" y2="14" stroke="currentColor" strokeWidth="2"/></svg>;
-const IconNextKey  = () => <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><polygon points="6,2 12,8 6,14"/><line x1="4" y1="2" x2="4" y2="14" stroke="currentColor" strokeWidth="2"/></svg>;
-const IconKey      = () => <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><rect x="6" y="6" width="4" height="4" transform="rotate(45 8 8)"/></svg>;
+let animEng = null; // singleton per session
 
-// ── Default tracks ────────────────────────────────────────────────────────────
-const DEFAULT_TRACKS = [
-  {
-    id: "t1", label: "DefaultCube", type: "object", open: true,
-    channels: [
-      { id: "c1", label: "Location X", keys: [0, 24, 60, 120] },
-      { id: "c2", label: "Location Y", keys: [0, 48, 120] },
-      { id: "c3", label: "Rotation Z", keys: [0, 60, 250] },
-    ]
-  },
-  {
-    id: "t2", label: "MainCamera", type: "camera", open: false,
-    channels: [
-      { id: "c4", label: "Location",   keys: [0, 120] },
-      { id: "c5", label: "FOV",        keys: [30, 90] },
-    ]
-  },
-  {
-    id: "t3", label: "Sun",        type: "light", open: false,
-    channels: [
-      { id: "c6", label: "Intensity", keys: [0, 60, 120, 180] },
-    ]
-  },
-];
-
-// ── Scrubber ──────────────────────────────────────────────────────────────────
-function Scrubber({ frame, start, end, onChange }) {
-  const ref = useRef(null);
-
-  const seek = useCallback((e) => {
-    const rect = ref.current.getBoundingClientRect();
-    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    onChange(Math.round(start + pct * (end - start)));
-  }, [start, end, onChange]);
-
-  const onMouseDown = (e) => {
-    seek(e);
-    const move = (ev) => seek(ev);
-    const up   = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
-  };
-
-  const pct = ((frame - start) / (end - start)) * 100;
-
-  // Ruler ticks
-  const ticks = [];
-  const step  = end <= 100 ? 10 : end <= 500 ? 25 : 50;
-  for (let f = start; f <= end; f += step) {
-    const x = ((f - start) / (end - start)) * 100;
-    ticks.push({ f, x });
-  }
-
-  return (
-    <div className="spx-tl-scrubber" ref={ref} onMouseDown={onMouseDown}>
-      {ticks.map(t => (
-        <div key={t.f} className="spx-tl-tick" ref={el => { if(el) el.style.left = t.x + "%" }}>
-          <div className="spx-tl-tick-line" />
-          <span className="spx-tl-tick-label">{t.f}</span>
-        </div>
-      ))}
-      <div className="spx-tl-playhead" ref={el => { if(el) el.style.left = pct + "%" }} />
-    </div>
-  );
+function getEngine() {
+  if (!animEng) animEng = new AnimationEngine(null);
+  return animEng;
 }
 
-// ── KeyDiamond ────────────────────────────────────────────────────────────────
-function KeyDiamond({ frame, start, end, selected, onClick }) {
-  const pct = ((frame - start) / (end - start)) * 100;
-  return (
-    <div
-      className={`spx-tl-key${selected ? " spx-tl-key--selected" : ""}`}
-      ref={el => { if(el) el.style.left = pct + "%" }}
-      onClick={e => { e.stopPropagation(); onClick?.(frame); }}
-      title={`Frame ${frame}`}
-    />
-  );
-}
-
-// ── TrackRow ──────────────────────────────────────────────────────────────────
-function TrackRow({ track, frame, start, end, onToggleOpen }) {
-  return (
-    <>
-      <div className="spx-tl-track-hdr">
-        <button
-          className="spx-tl-track-toggle"
-          onClick={() => onToggleOpen?.(track.id)}
-        >
-          <svg className={`spx-tl-chevron${track.open ? " spx-tl-chevron--open" : ""}`} viewBox="0 0 16 16" fill="currentColor" width="10" height="10">
-            <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-          </svg>
-        </button>
-        <span className="spx-tl-track-label">{track.label}</span>
-        <div className="spx-tl-track-area">
-          {track.channels.flatMap(ch => ch.keys).map((f, i) => (
-            <KeyDiamond key={i} frame={f} start={start} end={end} />
-          ))}
-          <div className="spx-tl-playline" ref={el => { if(el) el.style.left = ((frame-start)/(end-start)*100) + "%" }} />
-        </div>
-      </div>
-      {track.open && track.channels.map(ch => (
-        <div key={ch.id} className="spx-tl-channel-row">
-          <span className="spx-tl-channel-label">{ch.label}</span>
-          <div className="spx-tl-track-area">
-            {ch.keys.map((f, i) => (
-              <KeyDiamond key={i} frame={f} start={start} end={end} />
-            ))}
-            <div className="spx-tl-playline" ref={el => { if(el) el.style.left = ((frame-start)/(end-start)*100) + "%" }} />
-          </div>
-        </div>
-      ))}
-    </>
-  );
-}
-
-// ── Timeline ──────────────────────────────────────────────────────────────────
-export default function Timeline() {
-  const [frame,    setFrame]    = useState(1);
-  const [playing,  setPlaying]  = useState(false);
-  const [start,    setStart]    = useState(1);
+export default function Timeline({ targets = [], onTimeChange }) {
+  const [frame,    setFrame]    = useState(0);
+  const [start,    setStart]    = useState(0);
   const [end,      setEnd]      = useState(DEFAULT_END);
-  const [fps,      setFps]      = useState(FPS);
-  const [autoKey,  setAutoKey]  = useState(false);
-  const [mode,     setMode]     = useState("dope"); // dope | graph | nla
-  const [tracks,   setTracks]   = useState(DEFAULT_TRACKS);
-  const rafRef = useRef(null);
-  const lastRef = useRef(null);
-  const frameRef = useRef(frame);
-  frameRef.current = frame;
+  const [fps,      setFps]      = useState(DEFAULT_FPS);
+  const [playing,  setPlaying]  = useState(false);
+  const [loop,     setLoop]     = useState(true);
+  const [clips,    setClips]    = useState(["Main"]);
+  const [activeClip, setActiveClip] = useState("Main");
+  const [zoom,     setZoom]     = useState(1);
+  const [panOffset,setPanOffset]= useState(0);
+  const [channels, setChannels] = useState([
+    { name:"Location X", prop:"position.x", color:"#e44", keyframes:[] },
+    { name:"Location Y", prop:"position.y", color:"#4e4", keyframes:[] },
+    { name:"Location Z", prop:"position.z", color:"#44e", keyframes:[] },
+    { name:"Rotation X", prop:"rotation.x", color:"#e88", keyframes:[] },
+    { name:"Rotation Y", prop:"rotation.y", color:"#8e8", keyframes:[] },
+    { name:"Rotation Z", prop:"rotation.z", color:"#88e", keyframes:[] },
+    { name:"Scale",      prop:"scale.x",    color:"#ee4", keyframes:[] },
+  ]);
+  const [selectedKf, setSelectedKf] = useState(null);
+  const rafRef     = useRef(null);
+  const lastRef    = useRef(performance.now());
+  const scrubRef   = useRef(null);
+  const eng        = getEngine();
 
-  const play = () => {
-    setPlaying(true);
-    lastRef.current = performance.now();
-    const tick = (now) => {
-      const dt = (now - lastRef.current) / 1000;
+  // ── Init animation engine ─────────────────────────────────────────────────
+  useEffect(() => {
+    eng.fps = fps;
+    if (!eng.clips.has("Main")) {
+      const clip = eng.createClip("Main", DEFAULT_END / DEFAULT_FPS);
+      clip.fps = DEFAULT_FPS;
+    }
+  }, []);
+
+  // ── Playback loop ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const tick = () => {
+      const now  = performance.now();
+      const dt   = (now - lastRef.current) / 1000;
       lastRef.current = now;
-      setFrame(f => {
-        const next = f + dt * fps;
-        return next > end ? start : next;
-      });
+      if (playing) {
+        setFrame(f => {
+          let next = f + dt * fps;
+          if (next > end) { if (loop) next = start; else { next = end; setPlaying(false); } }
+          const time = next / fps;
+          eng.setTime(time);
+          onTimeChange?.(time, Math.round(next));
+          return next;
+        });
+      }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [playing, fps, start, end, loop]);
+
+  // ── Insert keyframe at current frame ─────────────────────────────────────
+  const insertKeyframe = useCallback(() => {
+    const time = frame / fps;
+    const clip = eng.clips.get(activeClip);
+    if (!clip) return;
+    setChannels(prev => prev.map(ch => {
+      const existing = ch.keyframes.find(k => Math.abs(k.frame - frame) < 0.5);
+      if (existing) return ch;
+      // Get current value from targets
+      let val = 0;
+      if (targets.length > 0) {
+        const t = targets[0];
+        const parts = ch.prop.split(".");
+        if (parts.length === 2) val = t[parts[0]]?.[parts[1]] ?? 0;
+      }
+      let fc = clip.fcurves.find(f => f.property === ch.prop);
+      if (!fc) fc = clip.addFCurve(ch.prop, targets[0] || null);
+      fc.addKeyframe(time, val);
+      return { ...ch, keyframes: [...ch.keyframes, { frame: Math.round(frame), time, value: val }] };
+    }));
+  }, [frame, fps, activeClip, targets, eng]);
+
+  // ── Delete keyframe ───────────────────────────────────────────────────────
+  const deleteKeyframe = useCallback((chanIdx, kfFrame) => {
+    setChannels(prev => prev.map((ch, i) => {
+      if (i !== chanIdx) return ch;
+      const time = kfFrame / fps;
+      const clip = eng.clips.get(activeClip);
+      if (clip) {
+        const fc = clip.fcurves.find(f => f.property === ch.prop);
+        fc?.removeKeyframe(time);
+      }
+      return { ...ch, keyframes: ch.keyframes.filter(k => k.frame !== kfFrame) };
+    }));
+  }, [fps, activeClip, eng]);
+
+  // ── Scrubber drag ─────────────────────────────────────────────────────────
+  const onScrubberDown = useCallback((e) => {
+    const rect = scrubRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const setFromMouse = (clientX) => {
+      const t = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const f = Math.round(start + t * (end - start));
+      setFrame(f);
+      const time = f / fps;
+      eng.setTime(time);
+      onTimeChange?.(time, f);
+    };
+    setFromMouse(e.clientX);
+    const mv = (ev) => setFromMouse(ev.clientX);
+    const up = () => { window.removeEventListener("mousemove",mv); window.removeEventListener("mouseup",up); };
+    window.addEventListener("mousemove",mv);
+    window.addEventListener("mouseup",up);
+  }, [start, end, fps, eng, onTimeChange]);
+
+  // ── Add clip ──────────────────────────────────────────────────────────────
+  const addClip = () => {
+    const name = `Clip_${clips.length+1}`;
+    eng.createClip(name, end/fps);
+    setClips(prev=>[...prev,name]);
+    setActiveClip(name);
   };
 
-  const pause = () => {
-    setPlaying(false);
-    cancelAnimationFrame(rafRef.current);
-  };
+  const totalFrames = end - start;
+  const pct = totalFrames > 0 ? (frame - start) / totalFrames : 0;
+  const framePx = (f) => ((f - start) / totalFrames) * 100;
 
-  const stop = () => {
-    pause();
-    setFrame(start);
-  };
-
-  const toggleOpen = (id) => {
-    setTracks(prev => prev.map(t => t.id === id ? { ...t, open: !t.open } : t));
-  };
+  const INTERP_COLORS = { linear:"#888", bezier:"#0f8", constant:"#f80", ease_in:"#88f", ease_out:"#f88" };
 
   return (
-    <div className="spx-timeline">
+    <div className="spx-tl-panel">
 
-      {/* Header */}
-      <div className="spx-tl-header">
-        <div className="spx-tl-mode-tabs">
-          {["dope","graph","nla"].map(m => (
-            <button
-              key={m}
-              className={`spx-tl-mode-tab${mode === m ? " spx-tl-mode-tab--active" : ""}`}
-              onClick={() => setMode(m)}
-            >
-              {m === "dope" ? "Dope Sheet" : m === "graph" ? "Graph Editor" : "NLA"}
-            </button>
+      {/* Top bar */}
+      <div className="spx-tl-topbar">
+        {/* Transport */}
+        <div className="spx-tl-transport">
+          <button className="spx-tl-btn" onClick={()=>{setFrame(start);eng.setTime(start/fps);}}>⏮</button>
+          <button className="spx-tl-btn" onClick={()=>{setFrame(f=>Math.max(start,f-1));}} >⏪</button>
+          <button className={`spx-tl-btn spx-tl-btn--play${playing?" spx-tl-btn--playing":""}`} onClick={()=>setPlaying(p=>!p)}>{playing?"⏸":"▶"}</button>
+          <button className="spx-tl-btn" onClick={()=>{setFrame(f=>Math.min(end,f+1));}}>⏩</button>
+          <button className="spx-tl-btn" onClick={()=>{setFrame(end);eng.setTime(end/fps);}}>⏭</button>
+          <button className={`spx-tl-btn${loop?" spx-tl-btn--active":""}`} onClick={()=>setLoop(v=>!v)}>⟳</button>
+        </div>
+
+        {/* Frame counter */}
+        <div className="spx-tl-frame-info">
+          <span className="spx-tl-frame-label">Frame</span>
+          <input className="spx-tl-frame-input" type="number" value={Math.round(frame)} min={start} max={end} onChange={e=>{const f=+e.target.value;setFrame(f);eng.setTime(f/fps);}}/>
+          <span className="spx-tl-frame-label">/ {end}</span>
+        </div>
+
+        {/* Range */}
+        <div className="spx-tl-range">
+          <span className="spx-tl-frame-label">Start</span>
+          <input className="spx-tl-frame-input" type="number" value={start} onChange={e=>setStart(+e.target.value)}/>
+          <span className="spx-tl-frame-label">End</span>
+          <input className="spx-tl-frame-input" type="number" value={end} onChange={e=>setEnd(+e.target.value)}/>
+        </div>
+
+        {/* FPS */}
+        <select className="spx-tl-select" value={fps} onChange={e=>{setFps(+e.target.value);eng.fps=+e.target.value;}}>
+          {[12,16,24,25,30,48,60,120].map(f=><option key={f} value={f}>{f}fps</option>)}
+        </select>
+
+        {/* Clip */}
+        <select className="spx-tl-select" value={activeClip} onChange={e=>setActiveClip(e.target.value)}>
+          {clips.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+        <button className="spx-tl-btn" onClick={addClip} title="New clip">+</button>
+
+        {/* Keyframe actions */}
+        <button className="spx-tl-btn spx-tl-btn--kf" onClick={insertKeyframe} title="Insert keyframe (I)">⬦ Key</button>
+      </div>
+
+      {/* Main area */}
+      <div className="spx-tl-main">
+
+        {/* Channel names */}
+        <div className="spx-tl-channels">
+          {channels.map((ch,i)=>(
+            <div key={ch.prop} className="spx-tl-channel">
+              <div className="spx-tl-channel-dot" ref={el=>{if(el)el.style.background=ch.color;}}/>
+              <span className="spx-tl-channel-name">{ch.name}</span>
+              <span className="spx-tl-channel-kf-count">{ch.keyframes.length}</span>
+            </div>
           ))}
         </div>
 
-        {/* Playback Controls */}
-        <div className="spx-tl-controls">
-          <button className="spx-tl-btn" onClick={() => setFrame(start)} title="First Frame"><IconFirst /></button>
-          <button className="spx-tl-btn" title="Prev Keyframe"><IconPrevKey /></button>
-          {playing
-            ? <button className="spx-tl-btn spx-tl-btn--play" onClick={pause} title="Pause"><IconPause /></button>
-            : <button className="spx-tl-btn spx-tl-btn--play" onClick={play}  title="Play"><IconPlay /></button>
-          }
-          <button className="spx-tl-btn" onClick={stop} title="Stop"><IconStop /></button>
-          <button className="spx-tl-btn" title="Next Keyframe"><IconNextKey /></button>
-          <button className="spx-tl-btn" onClick={() => setFrame(end)} title="Last Frame"><IconLast /></button>
-        </div>
+        {/* Dope sheet */}
+        <div className="spx-tl-dope">
+          {/* Scrubber */}
+          <div className="spx-tl-scrubber-track" ref={scrubRef} onMouseDown={onScrubberDown}>
+            {/* Frame ticks */}
+            {Array.from({length:Math.ceil(totalFrames/fps)+1},(_,i)=>i*fps).map(f=>(
+              <div key={f} className="spx-tl-ruler-tick" ref={el=>{if(el)el.style.left=framePx(start+f)+"%";}}>
+                <span className="spx-tl-ruler-label">{start+f}</span>
+              </div>
+            ))}
+            {/* Playhead */}
+            <div className="spx-tl-playhead" ref={el=>{if(el)el.style.left=pct*100+"%";}}/>
+          </div>
 
-        {/* Frame / Range / FPS */}
-        <div className="spx-tl-fields">
-          <div className="spx-tl-field">
-            <span className="spx-tl-field-label">Start</span>
-            <input className="spx-tl-field-input" type="number" value={start} onChange={e => setStart(+e.target.value)} />
+          {/* Keyframe rows */}
+          <div className="spx-tl-kf-rows">
+            {channels.map((ch,ci)=>(
+              <div key={ch.prop} className="spx-tl-kf-row">
+                {ch.keyframes.map(kf=>(
+                  <div
+                    key={kf.frame}
+                    className={`spx-tl-kf${selectedKf?.frame===kf.frame&&selectedKf?.chan===ci?" spx-tl-kf--selected":""}`}
+                    ref={el=>{if(el){el.style.left=framePx(kf.frame)+"%";el.style.borderColor=ch.color;}}}
+                    onClick={e=>{e.stopPropagation();setSelectedKf({frame:kf.frame,chan:ci});}}
+                    onDoubleClick={e=>{e.stopPropagation();deleteKeyframe(ci,kf.frame);}}
+                    title={`Frame ${kf.frame}: ${kf.value?.toFixed?.(3)??kf.value}\nDbl-click to delete`}
+                  />
+                ))}
+              </div>
+            ))}
+            {/* Playline */}
+            <div className="spx-tl-playline" ref={el=>{if(el)el.style.left=pct*100+"%";}}/>
           </div>
-          <div className="spx-tl-field">
-            <span className="spx-tl-field-label">Frame</span>
-            <input className="spx-tl-field-input spx-tl-field-input--frame" type="number" value={Math.round(frame)} onChange={e => setFrame(+e.target.value)} />
-          </div>
-          <div className="spx-tl-field">
-            <span className="spx-tl-field-label">End</span>
-            <input className="spx-tl-field-input" type="number" value={end} onChange={e => setEnd(+e.target.value)} />
-          </div>
-          <div className="spx-tl-field">
-            <span className="spx-tl-field-label">FPS</span>
-            <select className="spx-tl-field-select" value={fps} onChange={e => setFps(+e.target.value)}>
-              {[12,24,25,30,48,60].map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </div>
-          <button
-            className={`spx-tl-autokey${autoKey ? " spx-tl-autokey--on" : ""}`}
-            onClick={() => setAutoKey(v => !v)}
-            title="Auto Keyframe"
-          >
-            <IconKey /> AUTO
-          </button>
         </div>
       </div>
 
-      {/* Scrubber */}
-      <Scrubber frame={Math.round(frame)} start={start} end={end} onChange={setFrame} />
-
-      {/* Track List */}
-      <div className="spx-tl-tracks">
-        {tracks.map(track => (
-          <TrackRow
-            key={track.id}
-            track={track}
-            frame={Math.round(frame)}
-            start={start}
-            end={end}
-            onToggleOpen={toggleOpen}
-          />
-        ))}
-      </div>
-
+      {/* Selected keyframe inspector */}
+      {selectedKf && (
+        <div className="spx-tl-kf-inspector">
+          <span className="spx-tl-kf-ins-label">{channels[selectedKf.chan]?.name} · Frame {selectedKf.frame}</span>
+          <select className="spx-tl-select" onChange={e=>{
+            const clip=eng.clips.get(activeClip);
+            const fc=clip?.fcurves.find(f=>f.property===channels[selectedKf.chan]?.prop);
+            const kf=fc?.keyframes.find(k=>Math.abs(k.time-selectedKf.frame/fps)<0.01);
+            if(kf)kf.interpolation=e.target.value;
+          }}>
+            {["bezier","linear","constant","ease_in","ease_out"].map(i=><option key={i} value={i}>{i}</option>)}
+          </select>
+          <button className="spx-tl-btn" onClick={()=>{deleteKeyframe(selectedKf.chan,selectedKf.frame);setSelectedKf(null);}}>Delete</button>
+          <button className="spx-tl-btn" onClick={()=>setSelectedKf(null)}>✕</button>
+        </div>
+      )}
     </div>
   );
 }
