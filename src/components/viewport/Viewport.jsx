@@ -26,7 +26,11 @@ export default function Viewport(props) {
   const rigEngRef   = useRef(null);
   const filmQualRef = useRef(null);
   const ptEngRef    = useRef(null);
-  const ptActiveRef = useRef(false);
+  const ptActiveRef  = useRef(false);
+  const gizmoRef     = useRef(null);
+  const undoRef      = useRef(null);
+  const [gizmoMode,  setGizmoMode]  = useState("translate");
+  const [undoInfo,   setUndoInfo]   = useState({ canUndo:false, canRedo:false });
   const sculpting   = useRef(false);
   const timeRef     = useRef(0);
 
@@ -87,6 +91,8 @@ export default function Viewport(props) {
     const ptEng = new PathTracerEngine(renderer, scene, cam);
     ptEngRef.current = ptEng;
     ptEng.init().then(ok => { if(ok) console.log("SPX Path Tracer ready"); });
+    const gizmo=new TransformGizmo(scene,cam,renderer);gizmoRef.current=gizmo;
+    const undo=new UndoRedoStack(100);undo.onChange(i=>setUndoInfo(i));undoRef.current=undo;
     filmEngRef.current= filmEng;
     sculptEngRef.current = sculptEng;
     subSelRef.current = subSel;
@@ -115,6 +121,7 @@ export default function Viewport(props) {
       }
       filmQualRef.current?.update(timeRef.current, dt);
       if(ptActiveRef.current && ptEngRef.current?._initialized){ ptEngRef.current.render(); }
+      gizmoRef.current?.update();
       filmEng.render(timeRef.current);
     };
     animate();
@@ -132,6 +139,7 @@ export default function Viewport(props) {
       filmEng.dispose();
       filmQualRef.current?.dispose();
       ptEngRef.current?.dispose();
+      gizmoRef.current?.dispose();
       subSel.dispose();
       renderer.dispose();
       if(el.contains(renderer.domElement))el.removeChild(renderer.domElement);
@@ -178,6 +186,10 @@ export default function Viewport(props) {
       else if(fn==="pt_upgrade_materials"){ptEngRef.current?.upgradeSceneMaterials();ptEngRef.current?.updateScene();setStatus("Materials upgraded for PT");}
       else if(fn==="pt_export_png"){const url=rendRef.current?.domElement?.toDataURL("image/png");if(url){const a=document.createElement("a");a.href=url;a.download="spx_render.png";a.click();}}
       else if(fn==="pt_get_progress"&&typeof params==="function"){params(ptEngRef.current?.getProgress());}
+      else if(fn==="gizmo_mode"){const m=params?.mode||"translate";gizmoRef.current?.setMode(m);setGizmoMode(m);}
+      else if(fn==="tool_change"){const t=params?.tool;if(t==="move"){gizmoRef.current?.setMode("translate");setGizmoMode("translate");}if(t==="rotate"){gizmoRef.current?.setMode("rotate");setGizmoMode("rotate");}if(t==="scale"){gizmoRef.current?.setMode("scale");setGizmoMode("scale");}}
+      else if(fn==="add_prim"){doAddPrim(params?.type||"cube");}
+      else if(fn==="create_rig"){doCreateRig();}
     });
   },[onRegisterAction]);
 
@@ -275,7 +287,7 @@ export default function Viewport(props) {
   // ── Geo ops ───────────────────────────────────────────────────────────────
   const geoOp = useCallback((op,...args)=>{
     const sel=selRef.current, eng=engRef.current; if(!sel||!eng)return;
-    try{eng[op]?.(sel,...args);syncOutline(sel);refreshStats(sel);setStatus(`${op} ✓`);}
+    try{undoRef.current?.pushGeoState(sel,op);eng[op]?.(sel,...args);syncOutline(sel);refreshStats(sel);setStatus(`${op} ✓`);}
     catch(e){setStatus(`${op} failed: ${e.message}`);}
   },[]);
 
@@ -368,6 +380,8 @@ export default function Viewport(props) {
         case"arrowright": if(sel&&subMode==="OBJECT")sel.position.x+=0.1; break;
         case"arrowup":    if(sel&&subMode==="OBJECT"){if(e.shiftKey)sel.position.z-=0.1;else sel.position.y+=0.1;} break;
         case"arrowdown":  if(sel&&subMode==="OBJECT"){if(e.shiftKey)sel.position.z+=0.1;else sel.position.y-=0.1;} break;
+        case"z":if(e.ctrlKey){e.preventDefault();const un=undoRef.current?.undo();if(un)setStatus(`Undo: ${un}`);} break;
+        case"y":if(e.ctrlKey){e.preventDefault();const re=undoRef.current?.redo();if(re)setStatus(`Redo: ${re}`);} break;
         case"[": setSculptRadius(r=>Math.max(0.05,r-0.05)); break;
         case"]": setSculptRadius(r=>Math.min(5,r+0.05));    break;
         default: break;

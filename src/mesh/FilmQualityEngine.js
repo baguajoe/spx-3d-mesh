@@ -839,3 +839,5 @@ export class FilmQualityRenderer {
     this.volumes.dispose();
   }
 }
+
+export { FilmQualityRenderer as FilmQualityEngine };
