@@ -196,3 +196,4 @@ export default function App() {
     />
   );
 }
+import "./styles/spx-film.css";
