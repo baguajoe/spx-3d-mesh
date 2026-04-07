@@ -23,7 +23,7 @@ import MocapPanel          from "./components/panels/MocapPanel";
 import LeftToolbar         from "./components/panels/LeftToolbar";
 import PreferencesPanel    from "./components/panels/PreferencesPanel";
 import GraphEditor         from "./components/panels/GraphEditor";
-import GreasePencilAnimator from "./components/panels/GreasePencilAnimator";
+import SPXSketchAnimator    from "./components/panels/SPXSketchAnimator";
 import SimulationPanel     from "./components/panels/SimulationPanel";
 import ParticlePanel       from "./components/panels/ParticlePanel";
 import CompositingPanel    from "./components/panels/CompositingPanel";
@@ -98,7 +98,7 @@ function BottomPanel({ panel }) {
     case "sketch":   return <SPXSketch/>;
     case "nla":         return <NLAEditor onAction={()=>{}}/>;
     case "grapheditor":  return <GraphEditor/>;
-    case "greasepencil": return <GreasePencilAnimator onExportToScene={(frames)=>console.log('GP export',frames.length)}/>;
+    case "greasepencil": return <SPXSketchAnimator onExportToScene={(frames)=>console.log('GP export',frames.length)}/>;
     case "timeline": return <Timeline/>;
     default:         return <Timeline/>;
   }
