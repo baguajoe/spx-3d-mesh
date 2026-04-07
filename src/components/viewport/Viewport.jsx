@@ -4,10 +4,12 @@ import { GeometryEngine } from "../../mesh/GeometryEngine";
 import { FilmRendererEngine, SculptEngine } from "../../mesh/FilmRenderer";
 import { SubObjectSelection, SELECT_MODE } from "../../mesh/SubObjectSelection";
 import { RiggingEngine } from "../../mesh/RiggingEngine";
+import { FilmQualityRenderer as FilmQualityEngine } from "../../mesh/FilmQualityEngine";
 
 const NEAR=0.01, FAR=10000, FOV=60;
 
-export default function Viewport({ activeTool, onSelectObject, onStatsUpdate, filmParams, lightingParams, renderParams }) {
+export default function Viewport(props) {
+  const { activeTool, onSelectObject, onStatsUpdate, filmParams, lightingParams, renderParams, onRegisterAction } = props;
   const mountRef    = useRef(null);
   const rendRef     = useRef(null);
   const sceneRef    = useRef(null);
@@ -22,6 +24,7 @@ export default function Viewport({ activeTool, onSelectObject, onStatsUpdate, fi
   const sculptEngRef= useRef(null);
   const subSelRef   = useRef(null);
   const rigEngRef   = useRef(null);
+  const filmQualRef = useRef(null);
   const sculpting   = useRef(false);
   const timeRef     = useRef(0);
 
@@ -77,6 +80,8 @@ export default function Viewport({ activeTool, onSelectObject, onStatsUpdate, fi
     const rigEng   = new RiggingEngine(scene);
 
     engRef.current    = eng;
+    const filmQual = new FilmQualityEngine(renderer, scene, cam);
+    filmQualRef.current = filmQual;
     filmEngRef.current= filmEng;
     sculptEngRef.current = sculptEng;
     subSelRef.current = subSel;
@@ -103,6 +108,7 @@ export default function Viewport({ activeTool, onSelectObject, onStatsUpdate, fi
         c.position.set(x+o.target.x,y+o.target.y,z+o.target.z);
         c.lookAt(o.target);
       }
+      filmQualRef.current?.update(timeRef.current, dt);
       filmEng.render(timeRef.current);
     };
     animate();
@@ -118,6 +124,7 @@ export default function Viewport({ activeTool, onSelectObject, onStatsUpdate, fi
       cancelAnimationFrame(rafRef.current);
       ro.disconnect();
       filmEng.dispose();
+      filmQualRef.current?.dispose();
       subSel.dispose();
       renderer.dispose();
       if(el.contains(renderer.domElement))el.removeChild(renderer.domElement);
@@ -128,6 +135,25 @@ export default function Viewport({ activeTool, onSelectObject, onStatsUpdate, fi
   useEffect(()=>{ if(filmParams&&filmEngRef.current) filmEngRef.current.applyFromCameraPanel(filmParams); },[filmParams]);
   useEffect(()=>{ if(lightingParams&&filmEngRef.current) filmEngRef.current.applyFromLightingPanel(lightingParams.lights||[],lightingParams.global||{}); },[lightingParams]);
   useEffect(()=>{ if(renderParams&&filmEngRef.current) filmEngRef.current.applyFromRenderPanel(renderParams); },[renderParams]);
+
+  // Register external action handler
+  useEffect(()=>{
+    if(!onRegisterAction)return;
+    onRegisterAction((fn, params)=>{
+      const fq=filmQualRef.current, sel=selRef.current, scene=sceneRef.current;
+      if(!fq||!scene)return;
+      if(fn==="filmmat_skin"&&sel){fq.applySkin(sel,params);setStatus("SSS Skin applied");}
+      else if(fn==="filmmat_hair"&&sel){fq.applyHair(sel,params);setStatus(`Hair: ${params.count} strands`);}
+      else if(fn==="filmmat_hair_remove"&&sel){fq.hair.remove(sel.name);setStatus("Hair removed");}
+      else if(fn==="filmmat_pbr"&&sel){fq.applyFilmPBR(sel,params);setStatus("Film PBR applied");}
+      else if(fn==="filmmat_fog"){fq.volumes.createFog(params);setStatus("Atmosphere added");}
+      else if(fn==="filmmat_fog_remove"){fq.volumes.dispose();setStatus("Atmosphere removed");}
+      else if(fn==="filmmat_lod"&&sel){fq.toLOD(sel);setStatus("LOD applied");}
+      else if(fn==="filmmat_instanced_foliage"){fq.createInstancedFoliage(params.type,params.count,params.spread);setStatus(`${params.count} instanced (1 draw call)`);}
+      else if(fn==="filmmat_instanced_clear"){fq.instanced.clear(params.type);setStatus("Cleared");}
+    });
+  },[onRegisterAction]);
+
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const addOutline  = (m)=>{const mat=new THREE.MeshBasicMaterial({color:0x00ffc8,side:THREE.BackSide});const o=new THREE.Mesh(m.geometry.clone(),mat);o.name="SelectionOutline";o.scale.setScalar(1.02);o.visible=false;m.add(o);};

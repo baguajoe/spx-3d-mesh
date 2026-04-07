@@ -17,6 +17,7 @@ import FilmLightingPanel   from "./components/panels/FilmLightingPanel";
 import FilmRenderPanel     from "./components/panels/FilmRenderPanel";
 import AssetBrowser        from "./components/panels/AssetBrowser";
 import GeometryNodesPanel  from "./components/panels/GeometryNodesPanel";
+import FilmMaterialsPanel  from "./components/panels/FilmMaterialsPanel";
 import "./styles/spx-shell.css";
 import "./styles/spx-panels.css";
 import "./styles/spx-tools.css";
@@ -66,6 +67,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "camera":     return <FilmCameraPanel onAction={onAction}/>;
     case "lighting":   return <FilmLightingPanel onAction={onAction}/>;
     case "render":     return <FilmRenderPanel onAction={onAction}/>;
+    case "filmmat":    return <FilmMaterialsPanel onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -124,10 +126,17 @@ export default function App() {
       case "ws_lighting":    handleSetWorkspace("Lighting");   break;
       case "ws_assets":      handleSetWorkspace("Assets");     break;
       case "ws_geonodes":    handleSetWorkspace("GeoNodes");   break;
+      case "ws_filmmat":     handleSetWorkspace("FilmMat");   break;
+      case "openFilmMat":    handleSetWorkspace("FilmMat");   break;
       // Generators → switch workspace + forward to viewport
       case "gen_terrain": case "gen_city": case "gen_foliage":
       case "gen_crowd":   case "gen_vehicle":
         handleSetWorkspace("Generators");
+        viewportActionRef.current?.(fn, params);
+        break;
+      case "filmmat_skin": case "filmmat_hair": case "filmmat_hair_remove":
+      case "filmmat_pbr": case "filmmat_fog": case "filmmat_fog_remove":
+      case "filmmat_lod": case "filmmat_instanced_foliage": case "filmmat_instanced_clear":
         viewportActionRef.current?.(fn, params);
         break;
       case "gen_clear":
