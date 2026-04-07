@@ -110,6 +110,8 @@ export default function Viewport(props) {
     camRef.current = cam;
 
     const grid = new THREE.GridHelper(20, 20, 0x334455, 0x222233);
+    grid.name = "_grid";
+    grid.visible = true;
     scene.add(grid);
     // X axis line (red)
     const xGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-10,0,0),new THREE.Vector3(10,0,0)]);
@@ -162,6 +164,7 @@ export default function Viewport(props) {
     rigEngRef.current = rigEng;
 
     const cube = eng.createBox(2,2,2,"DefaultCube");
+    cube.position.set(0, 0, 0);
     addOutline(cube); showOutline(cube,true);
     meshesRef.current = [cube];
     selRef.current    = cube;

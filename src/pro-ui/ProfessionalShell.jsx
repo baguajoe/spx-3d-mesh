@@ -337,7 +337,6 @@ export default function ProfessionalShell({
       <div className="spx-main">
         {leftToolbar && <div className="spx-lt-toolbar-wrap">{leftToolbar}</div>}
         <aside className="spx-left">{leftPanel}</aside>
-        {leftToolbar && <div className="spx-lt-toolbar-wrap">{leftToolbar}</div>}
 
         {/* Tool Strip */}
         <div className="spx-tool-strip">
