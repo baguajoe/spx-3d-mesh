@@ -19,6 +19,8 @@ import AssetBrowser        from "./components/panels/AssetBrowser";
 import GeometryNodesPanel  from "./components/panels/GeometryNodesPanel";
 import FilmMaterialsPanel  from "./components/panels/FilmMaterialsPanel";
 import PathTracerPanel     from "./components/panels/PathTracerPanel";
+import MocapPanel          from "./components/panels/MocapPanel";
+import LeftToolbar         from "./components/panels/LeftToolbar";
 import "./styles/spx-shell.css";
 import "./styles/spx-panels.css";
 import "./styles/spx-tools.css";
@@ -27,6 +29,7 @@ import "./styles/spx-nodeeditor.css";
 import "./styles/spx-sketch.css";
 import "./styles/spx-film.css";
 import "./styles/spx-asset-browser.css";
+import "./styles/spx-toolbar-mocap.css";
 
 const WORKSPACE_LAYOUTS = {
   Modeling:    { left:"scene",     right:"properties", bottom:"timeline" },
@@ -37,13 +40,15 @@ const WORKSPACE_LAYOUTS = {
   Shading:     { left:"scene",     right:"material",   bottom:"timeline" },
   Rendering:   { left:"scene",     right:"render",     bottom:"timeline" },
   VFX:         { left:"scene",     right:"modifiers",  bottom:"timeline" },
-  Mocap:       { left:"scene",     right:"rigging",    bottom:"timeline" },
+  Mocap:       { left:"scene",     right:"mocap",      bottom:"timeline" },
   Generators:  { left:"generators",right:"properties", bottom:"timeline" },
   Sketch:      { left:"scene",     right:"properties", bottom:"sketch"   },
   Camera:      { left:"scene",     right:"camera",     bottom:"timeline" },
   Lighting:    { left:"scene",     right:"lighting",   bottom:"timeline" },
   GeoNodes:    { left:"geonodes",  right:"properties", bottom:"timeline" },
   Assets:      { left:"assets",    right:"properties", bottom:"timeline" },
+  FilmMat:     { left:"scene",     right:"filmmat",    bottom:"timeline" },
+  PathTrace:   { left:"scene",     right:"pathtrace",  bottom:"timeline" },
 };
 
 function LeftPanel({ panel, onAction, onSelectObject, onImport }) {
@@ -70,6 +75,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "render":     return <FilmRenderPanel onAction={onAction}/>;
     case "filmmat":    return <FilmMaterialsPanel onAction={onAction}/>;
     case "pathtrace":  return <PathTracerPanel onAction={onAction}/>;
+    case "mocap":      return <MocapPanel onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -90,7 +96,6 @@ export default function App() {
   const [filmParams,      setFilmParams]      = useState(null);
   const [lightingParams,  setLightingParams]  = useState(null);
   const [renderParams,    setRenderParams]    = useState(null);
-  // Generator actions forwarded to viewport via ref
   const viewportActionRef = useRef(null);
 
   const baseLayout = WORKSPACE_LAYOUTS[activeWorkspace] || WORKSPACE_LAYOUTS.Modeling;
@@ -101,20 +106,25 @@ export default function App() {
     setPanelOverride({});
   }, []);
 
+  const handleToolChange = useCallback((toolId) => {
+    setActiveTool(toolId);
+    viewportActionRef.current?.("tool_change", { tool: toolId });
+  }, []);
+
   const handleMenuAction = useCallback((fn, params) => {
     switch(fn) {
-      // Panel switches
       case "openUVEditor":   setPanelOverride(o=>({...o,right:"uv"}));      break;
       case "openMatEditor":  setPanelOverride(o=>({...o,right:"material"})); break;
       case "openGeoNodes":   handleSetWorkspace("GeoNodes");                 break;
       case "openAssets":     handleSetWorkspace("Assets");                   break;
       case "openCamera":     handleSetWorkspace("Camera");                   break;
       case "openLighting":   handleSetWorkspace("Lighting");                 break;
-      // Camera/lighting/render wiring
-      case "cam_apply":      setFilmParams(params); break;
-      case "lighting_apply": setLightingParams(params); break;
+      case "openFilmMat":    handleSetWorkspace("FilmMat");                  break;
+      case "openPathTrace":  handleSetWorkspace("PathTrace");                break;
+      case "openMocap":      handleSetWorkspace("Mocap");                    break;
+      case "cam_apply":      setFilmParams(params);                          break;
+      case "lighting_apply": setLightingParams(params);                      break;
       case "render_start":   setRenderParams(params); handleSetWorkspace("Rendering"); break;
-      // Workspace switches
       case "ws_modeling":    handleSetWorkspace("Modeling");   break;
       case "ws_sculpt":      handleSetWorkspace("Sculpt");     break;
       case "ws_uv":          handleSetWorkspace("UV");         break;
@@ -128,86 +138,103 @@ export default function App() {
       case "ws_lighting":    handleSetWorkspace("Lighting");   break;
       case "ws_assets":      handleSetWorkspace("Assets");     break;
       case "ws_geonodes":    handleSetWorkspace("GeoNodes");   break;
-      case "ws_filmmat":     handleSetWorkspace("FilmMat");   break;
-      case "openFilmMat":    handleSetWorkspace("FilmMat");   break;
-      case "openPathTrace":  handleSetWorkspace("PathTrace"); break;
-      case "ws_pathtrace":   handleSetWorkspace("PathTrace"); break;
-      // Generators → switch workspace + forward to viewport
-      case "gen_terrain": case "gen_city": case "gen_foliage":
-      case "gen_crowd":   case "gen_vehicle":
-        handleSetWorkspace("Generators");
-        viewportActionRef.current?.(fn, params);
-        break;
+      case "ws_filmmat":     handleSetWorkspace("FilmMat");    break;
+      case "ws_pathtrace":   handleSetWorkspace("PathTrace");  break;
+      case "ws_mocap":       handleSetWorkspace("Mocap");      break;
       case "filmmat_skin": case "filmmat_hair": case "filmmat_hair_remove":
-      case "filmmat_pbr": case "filmmat_fog": case "filmmat_fog_remove":
-      case "filmmat_lod": case "filmmat_instanced_foliage": case "filmmat_instanced_clear":
-        viewportActionRef.current?.(fn, params);
-        break;
+      case "filmmat_pbr":  case "filmmat_fog":  case "filmmat_fog_remove":
+      case "filmmat_lod":  case "filmmat_instanced_foliage": case "filmmat_instanced_clear":
+        viewportActionRef.current?.(fn, params); break;
       case "pt_start": case "pt_stop": case "pt_enable": case "pt_disable":
-      case "pt_reset": case "pt_sky": case "pt_env_intensity":
+      case "pt_reset": case "pt_sky":  case "pt_env_intensity":
       case "pt_upgrade_materials": case "pt_export_png": case "pt_get_progress":
         viewportActionRef.current?.(fn, params);
         if(fn==="pt_start") handleSetWorkspace("PathTrace");
         break;
-      case "gen_clear":
-        viewportActionRef.current?.("gen_clear");
+      case "gen_terrain": case "gen_city": case "gen_foliage":
+      case "gen_crowd":   case "gen_vehicle": case "gen_clear":
+        handleSetWorkspace("Generators");
+        viewportActionRef.current?.(fn, params);
         break;
-      // Sculpt
+      case "mocap_pose":
+        viewportActionRef.current?.(fn, params); break;
+      case "mocap_apply_clip":
+        viewportActionRef.current?.(fn, params); break;
+      // Toolbar tool actions
+      case "move": case "rotate": case "scale": case "transform":
+        setActiveTool(fn);
+        viewportActionRef.current?.("gizmo_mode", { mode: fn === "transform" ? "translate" : fn });
+        break;
+      case "select": case "select_box": case "select_circle": case "select_lasso":
+        setActiveTool(fn); break;
+      case "add_cube":     viewportActionRef.current?.("add_prim",{type:"cube"});     break;
+      case "add_sphere":   viewportActionRef.current?.("add_prim",{type:"sphere"});   break;
+      case "add_cylinder": viewportActionRef.current?.("add_prim",{type:"cylinder"}); break;
+      case "add_cone":     viewportActionRef.current?.("add_prim",{type:"cone"});     break;
+      case "add_torus":    viewportActionRef.current?.("add_prim",{type:"torus"});    break;
+      case "add_plane":    viewportActionRef.current?.("add_prim",{type:"plane"});    break;
+      case "add_armature": viewportActionRef.current?.("create_rig",{}); handleSetWorkspace("Rigging"); break;
       case "brush_draw": case "brush_clay": case "brush_smooth":
         handleSetWorkspace("Sculpt"); break;
-      // Rigging
       case "create_armature": case "ik_chain": case "heat_weights":
         handleSetWorkspace("Rigging"); break;
-      // File
+      case "sketch_open":  setPanelOverride(o=>({...o,bottom:"sketch"}));   break;
+      case "sketch_close": setPanelOverride(o=>({...o,bottom:"timeline"})); break;
       case "newScene":
         if(window.confirm("Start new scene?")) window.location.reload(); break;
       case "showAbout":
-        alert("SPX 3D Mesh Editor v2.0\nStreamPireX — Indie Film & AAA Quality\n\nSub-object: 1=Vert 2=Edge 3=Face\nSculpt: 9 brushes + X-symmetry\nRigging: FABRIK IK + auto weights"); break;
-      case "sketch_open":  setPanelOverride(o=>({...o,bottom:"sketch"}));   break;
-      case "sketch_close": setPanelOverride(o=>({...o,bottom:"timeline"})); break;
+        alert("SPX 3D Mesh Editor v2.0\nStreamPireX\n\nFilm Quality: SSS Skin, Strand Hair, Path Tracer\nMoCap: Body + Face (468pts) + Hands + Video\nSub-object: 1=Vert 2=Edge 3=Face\nTransform Gizmos: G=Move R=Rotate S=Scale"); break;
       default:
         console.log("SPX:", fn, params); break;
     }
   }, [handleSetWorkspace]);
 
   const handleImport = useCallback((asset) => {
-    console.log("Import:", asset.name);
     viewportActionRef.current?.("asset_import", asset);
   }, []);
 
   return (
-    <ProfessionalShell
-      activeWorkspace={activeWorkspace}
-      setActiveWorkspace={handleSetWorkspace}
-      activeTool={activeTool}
-      setActiveTool={setActiveTool}
-      onMenuAction={handleMenuAction}
-      leftPanel={
-        <LeftPanel
-          panel={layout.left}
-          onAction={handleMenuAction}
-          onSelectObject={setSelectedObject}
-          onImport={handleImport}
-        />
-      }
-      centerPanel={
-        <Viewport
-          activeTool={activeTool}
-          onSelectObject={setSelectedObject}
-          filmParams={filmParams}
-          lightingParams={lightingParams}
-          renderParams={renderParams}
-          onRegisterAction={(fn)=>{ viewportActionRef.current=fn; }}
-        />
-      }
-      rightPanel={
-        <RightPanel
-          panel={layout.right}
-          onAction={handleMenuAction}
-          selectedObject={selectedObject}
-        />
-      }
-      bottomPanel={<BottomPanel panel={layout.bottom}/>}
-    />
+    <div className="spx-app-root">
+      <ProfessionalShell
+        activeWorkspace={activeWorkspace}
+        setActiveWorkspace={handleSetWorkspace}
+        activeTool={activeTool}
+        setActiveTool={setActiveTool}
+        onMenuAction={handleMenuAction}
+        leftToolbar={
+          <LeftToolbar
+            activeTool={activeTool}
+            onToolChange={handleToolChange}
+            onAction={handleMenuAction}
+          />
+        }
+        leftPanel={
+          <LeftPanel
+            panel={layout.left}
+            onAction={handleMenuAction}
+            onSelectObject={setSelectedObject}
+            onImport={handleImport}
+          />
+        }
+        centerPanel={
+          <Viewport
+            activeTool={activeTool}
+            onSelectObject={setSelectedObject}
+            filmParams={filmParams}
+            lightingParams={lightingParams}
+            renderParams={renderParams}
+            onRegisterAction={fn=>{ viewportActionRef.current=fn; }}
+          />
+        }
+        rightPanel={
+          <RightPanel
+            panel={layout.right}
+            onAction={handleMenuAction}
+            selectedObject={selectedObject}
+          />
+        }
+        bottomPanel={<BottomPanel panel={layout.bottom}/>}
+      />
+    </div>
   );
 }
