@@ -328,16 +328,8 @@ body {
 
 /* ── Center Viewport ──────────────────────────────────────────────────── */
 .spx-center {
-  flex: 1 1 0 !important;
-  min-width: 0 !important;
-  overflow: hidden !important;
-  min-width: 0;
-  overflow: hidden;
-  width: 0;
-  background: var(--bg);
   position: relative;
-  overflow: hidden;
-  min-width: 0;
+  background: var(--bg);
 }
 
 /* ── Right Panel ──────────────────────────────────────────────────────── */
