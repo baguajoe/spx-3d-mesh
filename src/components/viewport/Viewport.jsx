@@ -37,6 +37,11 @@ export default function Viewport(props) {
   const clothRafRef  = useRef(null);
   const particleRef  = useRef(null);
   const scriptRef    = useRef(null);
+  const curveRef     = useRef(null);
+  const modSysRef    = useRef(null);
+  const textRef      = useRef(null);
+  const lightLinkRef = useRef(null);
+  const pluginRef    = useRef(null);
   const [gizmoMode,  setGizmoMode]  = useState("translate");
   const [undoInfo,      setUndoInfo]      = useState({ canUndo:false, canRedo:false });
   const [showSkeleton,  setShowSkeleton]  = useState(false);
@@ -109,6 +114,14 @@ export default function Viewport(props) {
     ioRef.current    = new ImportExportEngine(scene);
     particleRef.current = new ParticleEngine(scene);
     const api = new SPXScriptingAPI(scene, eng, { getSelected:()=>selRef.current });
+    curveRef.current     = new CurveSystem(scene);
+    modSysRef.current    = new ModifierSystem(scene);
+    textRef.current      = new TextObject(scene);
+    lightLinkRef.current = new LightLinking(renderer, scene);
+    const plugins        = new PluginSystem({});
+    registerBuiltinPlugins(plugins);
+    pluginRef.current    = plugins;
+    plugins.onSceneUpdate(scene);
     scriptRef.current = api;
     filmEngRef.current= filmEng;
     sculptEngRef.current = sculptEng;
@@ -307,6 +320,28 @@ export default function Viewport(props) {
         }));
       }
       else if(fn==="export_fbx"){exportFBX(sceneRef.current,"spx_export.fbx");setStatus("FBX exported");}
+      // Curves
+      else if(fn==="curve_create"){const c=curveRef.current?.createBezier(params?.name||"Curve");if(c){c.addPoint(new THREE.Vector3(-2,0,0));c.addPoint(new THREE.Vector3(0,2,0));c.addPoint(new THREE.Vector3(2,0,0));const m=c.toMesh(sceneRef.current,0.05);meshesRef.current.push(m);setStatus("Bezier curve created");}}
+      else if(fn==="curve_circle"){const r=curveRef.current?.createCircle(params?.radius||1,params?.name||"Circle");if(r)meshesRef.current.push(r.mesh);setStatus("Circle curve created");}
+      else if(fn==="curve_helix"){const h=curveRef.current?.createHelix(1,3,3,"Helix");if(h)meshesRef.current.push(h.mesh);setStatus("Helix created");}
+      else if(fn==="curve_to_mesh"&&sel){const c=curveRef.current?.curves.values().next().value;if(c){c.toMesh(sceneRef.current,0.05);setStatus("Curve converted to mesh");}}
+      // Modifiers
+      else if(fn==="mod_add"&&sel){modSysRef.current?.add(sel,params?.type||"Mirror",params||{});syncOutline(sel);refreshStats(sel);setStatus(`${params?.type} modifier added`);}
+      else if(fn==="mod_apply"&&sel){modSysRef.current?.apply(sel);syncOutline(sel);refreshStats(sel);setStatus("Modifiers applied");}
+      else if(fn==="mod_mirror"&&sel){modSysRef.current?.add(sel,"Mirror",{x:true});syncOutline(sel);refreshStats(sel);setStatus("Mirror modifier added");}
+      else if(fn==="mod_array"&&sel){modSysRef.current?.add(sel,"Array",{count:3,offset:new THREE.Vector3(2,0,0)});syncOutline(sel);refreshStats(sel);setStatus("Array modifier added");}
+      else if(fn==="mod_solidify"&&sel){modSysRef.current?.add(sel,"Solidify",{thickness:0.1});syncOutline(sel);refreshStats(sel);setStatus("Solidify modifier added");}
+      else if(fn==="mod_subdivision"&&sel){modSysRef.current?.add(sel,"Subdivision",{levels:2});syncOutline(sel);refreshStats(sel);setStatus("Subdivision modifier added");}
+      else if(fn==="mod_decimate"&&sel){modSysRef.current?.add(sel,"Decimate",{ratio:0.5});syncOutline(sel);refreshStats(sel);setStatus("Decimate modifier added");}
+      else if(fn==="mod_displace"&&sel){modSysRef.current?.add(sel,"Displace",{strength:0.3});syncOutline(sel);refreshStats(sel);setStatus("Displace modifier added");}
+      // Text
+      else if(fn==="text_create"){textRef.current?.create(params||{text:"SPX",size:1,depth:0.2}).then(m=>{if(m){meshesRef.current.push(m);addOutline(m);setStatus(`Text: ${params?.text||"SPX"}`);}});}
+      // Light linking
+      else if(fn==="light_link"){const lights=[];sceneRef.current?.traverse(o=>{if(o.isLight)lights.push(o);});if(lights[0]&&sel)lightLinkRef.current?.link(lights[0],[sel]);lightLinkRef.current?.apply();setStatus("Light linked");}
+      else if(fn==="light_exclude"){const lights=[];sceneRef.current?.traverse(o=>{if(o.isLight)lights.push(o);});if(lights[0]&&sel)lightLinkRef.current?.exclude(lights[0],[sel]);lightLinkRef.current?.apply();setStatus("Light excluded");}
+      // Plugins
+      else if(fn==="plugin_list"){console.log(pluginRef.current?.list());setStatus(`${pluginRef.current?.plugins.size} plugins loaded`);}
+      else if(fn==="add_text"){textRef.current?.create({text:params?.text||"Text",size:1,depth:0.2,name:params?.name||"Text"}).then(m=>{if(m){meshesRef.current.push(m);addOutline(m);}});}
       else if(fn==="export_png"){const url=rendRef.current?.domElement?.toDataURL("image/png");if(url){const a=document.createElement("a");a.href=url;a.download="spx_screenshot.png";a.click();}setStatus("Screenshot saved");}
     });
   },[onRegisterAction]);
@@ -412,7 +447,15 @@ export default function Viewport(props) {
   // ── Add prim ──────────────────────────────────────────────────────────────
   const doAddPrim = useCallback((type)=>{
     const eng=engRef.current; if(!eng)return;
-    const m=type==="sphere"?eng.createSphere(1,`Sphere_${Date.now()}`):eng.createBox(2,2,2,`${type}_${Date.now()}`);
+    let m;
+    if(type==="sphere")      m=eng.createSphere(1,`Sphere_${Date.now()}`);
+    else if(type==="cylinder")m=eng.createCylinder(1,2,`Cylinder_${Date.now()}`);
+    else if(type==="cone")   m=eng.createCone(1,2,`Cone_${Date.now()}`);
+    else if(type==="torus")  m=eng.createTorus(1,0.3,`Torus_${Date.now()}`);
+    else if(type==="plane")  m=eng.createPlane(4,4,`Plane_${Date.now()}`);
+    else if(type==="curve")  { curveRef.current?.createCircle(1,`Circle_${Date.now()}`); return; }
+    else if(type==="text")   { textRef.current?.create({text:"Text",size:1,depth:0.2}); return; }
+    else                     m=eng.createBox(2,2,2,`${type}_${Date.now()}`);
     showOutline(selRef.current,false); addOutline(m); showOutline(m,true);
     meshesRef.current.push(m); selRef.current=m;
     subSelRef.current?.setMesh(m);
