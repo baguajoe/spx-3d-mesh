@@ -1,24 +1,24 @@
 /* ── Viewport ─────────────────────────────────────────────────────────────── */
 .spx-viewport {
+  position: relative;
   width: 100%;
   height: 100%;
-  position: relative;
   overflow: hidden;
   background: var(--bg);
+  display: flex;
+  flex-direction: column;
 }
 
 .spx-viewport-canvas {
-  width: 100%;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: block;
   cursor: crosshair;
-  position: relative;
+  overflow: hidden;
 }
 
 .spx-viewport-canvas canvas {
   display: block;
-  position: absolute;
-  top: 0; left: 0;
 }
 
 /* Viewport Header */
