@@ -90,7 +90,9 @@ export default function Viewport(props) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
     const w = el.clientWidth > 0 ? el.clientWidth : (el.parentElement?.clientWidth || 600);
     const h = el.clientHeight > 0 ? el.clientHeight : (el.parentElement?.clientHeight || 500);
-    renderer.setSize(w, h, false);
+    renderer.setSize(w, h);
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -197,7 +199,9 @@ export default function Viewport(props) {
     animate();
 
     const ro = new ResizeObserver(()=>{
-      renderer.setSize(el.clientWidth,el.clientHeight,false);
+      renderer.setSize(el.clientWidth,el.clientHeight);
+      renderer.domElement.style.width = "100%";
+      renderer.domElement.style.height = "100%";
       cam.aspect=el.clientWidth/el.clientHeight;
       cam.updateProjectionMatrix();
     });
