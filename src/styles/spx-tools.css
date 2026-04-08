@@ -886,3 +886,16 @@
 .spx-tl-playline { position:absolute; top:0; width:2px; height:100%; background:rgba(0,255,200,0.4); pointer-events:none; z-index:5; }
 .spx-tl-kf-inspector { display:flex; align-items:center; gap:6px; padding:3px 8px; background:var(--bg2); border-top:1px solid var(--border); flex-shrink:0; font-size:9px; color:var(--text1); }
 .spx-tl-kf-ins-label { color:var(--teal); }
+
+.spx-tl-topbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  height: 32px;
+  overflow: hidden;
+}
