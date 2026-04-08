@@ -457,27 +457,6 @@ export default function MotionLibraryPanel({
 
   return (
     <div style={S.root}>
-      <style>{`
-        @keyframes spxToastIn {
-          from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
-        .spx-clip-card:hover {
-          background: ${T.cardHover} !important;
-          border-color: ${T.dim} !important;
-          transform: translateY(-1px);
-        }
-        .spx-clip-card:active {
-          transform: translateY(0);
-        }
-        .spx-tab:hover { color: ${T.text} !important; }
-        .spx-search:focus { border-color: ${T.teal}88 !important; }
-        .spx-record-btn:hover { opacity: 0.85; }
-        .spx-apply-btn:hover { background: ${T.teal}33 !important; border-color: ${T.teal}88 !important; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: ${T.dim}; border-radius: 2px; }
-      `}</style>
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div style={S.header}>

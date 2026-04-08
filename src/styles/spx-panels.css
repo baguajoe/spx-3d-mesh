@@ -566,3 +566,132 @@
 .spx-ol-row--d2 { padding-left: 32px; }
 .spx-ol-row--d3 { padding-left: 46px; }
 .spx-ol-row--d4 { padding-left: 60px; }
+
+
+/* ============================================================
+   EXTRACTED INLINE STYLES — common utility classes
+   ============================================================ */
+
+.spx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.spx-row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.spx-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+
+.spx-scroll-pane {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+
+.spx-section {
+  margin-bottom: 6px;
+  border: 1px solid #21262d;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.spx-section-header {
+  background: linear-gradient(90deg, #0a1520, #0d1117);
+  border-bottom: 1px solid #1e2a30;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.spx-section-body {
+  padding: 6px 8px;
+  background: #06060f;
+}
+
+.spx-label {
+  font-size: 10px;
+  color: #888;
+  margin-bottom: 2px;
+}
+
+.spx-label-teal {
+  color: #00ffc8;
+  font-weight: 600;
+}
+
+.spx-label-dim {
+  font-size: 9px;
+  color: #555;
+}
+
+.spx-label-muted {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.spx-label-mono {
+  font-size: 9px;
+  color: #555;
+  font-family: monospace;
+}
+
+.spx-label-header {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+
+.spx-flex-label {
+  font-size: 10px;
+  color: #888;
+  flex: 1;
+}
+
+.spx-spacer { margin-bottom: 5px; }
+.spx-spacer-lg { margin-bottom: 6px; }
+.spx-spacer-xl { margin-top: 10px; }
+
+.spx-range {
+  width: 100%;
+  accent-color: #00ffc8;
+  cursor: pointer;
+  height: 16px;
+}
+
+.spx-checkbox {
+  accent-color: #00ffc8;
+  width: 12px;
+  height: 12px;
+}
+
+.spx-color-swatch {
+  width: 32px;
+  height: 22px;
+  border: none;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.spx-close-btn {
+  margin-left: auto;
+  cursor: pointer;
+  color: #444;
+}
+
+.spx-close-btn:hover {
+  color: #00ffc8;
+}
