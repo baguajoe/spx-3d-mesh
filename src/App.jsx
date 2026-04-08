@@ -53,6 +53,54 @@ import "./styles/spx-film.css";
 import "./styles/spx-asset-browser.css";
 import "./styles/spx-toolbar-mocap.css";
 
+
+const TAB_PANELS = {
+  SURFACE: [
+    { label: 'UV Editor',           component: UVEditor },
+    { label: 'Node Materials',      component: NodeMaterialEditor },
+    { label: 'Film Materials',      component: FilmMaterialsPanel },
+    { label: 'Material Presets',    component: MaterialPresetsPanel },
+    { label: 'Modifier Stack',      component: ModifierStack },
+    { label: 'Sculpt / Paint',      component: SculptPanel },
+  ],
+  RIG: [
+    { label: 'Rigging',             component: RiggingPanel },
+    { label: 'Mocap',               component: MocapPanel },
+    { label: 'NLA Editor',          component: NLAEditor },
+    { label: 'Graph Editor',        component: GraphEditor },
+  ],
+  RENDER: [
+    { label: 'Film Camera',         component: FilmCameraPanel },
+    { label: 'Film Lighting',       component: FilmLightingPanel },
+    { label: 'Film Render',         component: FilmRenderPanel },
+    { label: 'Path Tracer',         component: PathTracerPanel },
+    { label: 'Compositing',         component: CompositingPanel },
+    { label: 'Film Materials',      component: FilmMaterialsPanel },
+  ],
+  FX: [
+    { label: 'Particles',           component: ParticlePanel },
+    { label: 'Simulation',          component: SimulationPanel },
+    { label: '3D → 2D',             component: SPXSketchAnimator },
+    { label: 'SPX Sketch',          component: SPXSketch },
+  ],
+  WORLD: [
+    { label: 'Scene Outliner',      component: SceneOutliner },
+    { label: 'Generators',          component: GeneratorsPanel },
+    { label: 'Asset Browser',       component: AssetBrowser },
+    { label: 'Preferences',         component: PreferencesPanel },
+  ],
+  GEN: [
+    { label: 'Pro Mesh',            component: ProMeshPanel },
+    { label: 'Geometry Nodes',      component: GeometryNodesPanel },
+    { label: 'Plugin Manager',      component: PluginManagerPanel },
+    { label: 'Render Farm',         component: RenderFarmPanel },
+    { label: 'Mesh Repair',         component: MeshRepairPanel },
+    { label: 'Scripting',           component: ScriptingPanel },
+    { label: 'Material Presets',    component: MaterialPresetsPanel },
+    { label: 'Timeline',            component: Timeline },
+  ],
+};
+
 const WORKSPACE_LAYOUTS = {
   Modeling:    { left:"scene",     right:"properties", bottom:"timeline" },
   Sculpt:      { left:"sculpt",    right:"properties", bottom:"timeline" },
@@ -71,7 +119,12 @@ const WORKSPACE_LAYOUTS = {
   Assets:      { left:"assets",    right:"properties", bottom:"timeline" },
   FilmMat:     { left:"scene",     right:"filmmat",    bottom:"timeline" },
   PathTrace:   { left:"scene",     right:"pathtrace",  bottom:"timeline" },
-  Panels:      { left:"scene",     right:"tabs",       bottom:"timeline" },
+  Surface:     { left:"scene",     right:"surface",    bottom:"timeline" },
+  Rig:         { left:"scene",     right:"rig",        bottom:"timeline" },
+  Render:      { left:"scene",     right:"render_tab", bottom:"timeline" },
+  Fx:          { left:"scene",     right:"fx",         bottom:"timeline" },
+  World:       { left:"scene",     right:"world",      bottom:"timeline" },
+  Gen:         { left:"scene",     right:"gen",        bottom:"timeline" },
 };
 
 function LeftPanel({ panel, onAction, onSelectObject, onImport }) {
@@ -107,7 +160,12 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "grapheditor": return <GraphEditor/>;
     case "scripting":   return <ScriptingPanel onAction={onAction}/>;
     case "matpresets":  return <MaterialPresetsPanel onAction={onAction}/>;
-    case "tabs":        return <SpxTabGroup onAction={onAction}/>;
+    case "surface":     return <SpxTabGroup panels={TAB_PANELS} defaultTab="SURFACE" onAction={onAction}/>;
+    case "rig":         return <SpxTabGroup panels={TAB_PANELS} defaultTab="RIG"     onAction={onAction}/>;
+    case "render_tab":  return <SpxTabGroup panels={TAB_PANELS} defaultTab="RENDER"  onAction={onAction}/>;
+    case "fx":          return <SpxTabGroup panels={TAB_PANELS} defaultTab="FX"      onAction={onAction}/>;
+    case "world":       return <SpxTabGroup panels={TAB_PANELS} defaultTab="WORLD"   onAction={onAction}/>;
+    case "gen":         return <SpxTabGroup panels={TAB_PANELS} defaultTab="GEN"     onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -181,7 +239,12 @@ export default function App() {
       case "ws_particles":   handleSetWorkspace("Particles");   break;
       case "ws_compositing": handleSetWorkspace("Compositing"); break;
       case "ws_nla":         handleSetWorkspace("NLA");         break;
-      case "ws_panels":      handleSetWorkspace("Panels");      break;
+      case "ws_surface":     handleSetWorkspace("Surface");     break;
+      case "ws_rig":         handleSetWorkspace("Rig");         break;
+      case "ws_render_tab":  handleSetWorkspace("Render");       break;
+      case "ws_fx":          handleSetWorkspace("Fx");           break;
+      case "ws_world":       handleSetWorkspace("World");        break;
+      case "ws_gen":         handleSetWorkspace("Gen");          break;
       case "openParticles":  handleSetWorkspace("Particles");   break;
       case "openCompositing":handleSetWorkspace("Compositing"); break;
       case "openNLA":        handleSetWorkspace("NLA");         break;
