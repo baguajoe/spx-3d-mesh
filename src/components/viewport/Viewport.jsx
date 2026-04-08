@@ -36,7 +36,7 @@ export default function Viewport(props) {
   const camRef      = useRef(null);
   const rafRef      = useRef(null);
   const mouseRef    = useRef({ x:0, y:0, button:-1, down:false });
-  const orbitRef    = useRef({ theta:0.6, phi:1.0, radius:10, target:new THREE.Vector3(0,1,0) });
+  const orbitRef    = useRef({ theta:0.6, phi:1.1, radius:12, target:new THREE.Vector3(0,0,0) });
   const selRef      = useRef(null);
   const meshesRef   = useRef([]);
   const engRef      = useRef(null);
@@ -111,7 +111,7 @@ export default function Viewport(props) {
     const w2 = el.clientWidth > 0 ? el.clientWidth : 600;
     const h2 = el.clientHeight > 0 ? el.clientHeight : 500;
     const cam = new THREE.PerspectiveCamera(FOV, w2/h2, NEAR, FAR);
-    cam.position.set(6,5,10); cam.lookAt(0,1,0);
+    cam.position.set(7,5,12); cam.lookAt(0,0,0);
     camRef.current = cam;
 
     const grid = new THREE.GridHelper(30, 30, 0x4488aa, 0x334455);
@@ -169,7 +169,6 @@ export default function Viewport(props) {
     rigEngRef.current = rigEng;
 
     const cube = eng.createBox(2,2,2,"DefaultCube");
-    cube.position.set(0, 1, 0);
     cube.position.set(0, 0, 0);
     addOutline(cube); showOutline(cube,true);
     meshesRef.current = [cube];
