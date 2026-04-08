@@ -1,0 +1,154 @@
+/* native-workspace-tabs.css — SpxTabGroup + accordion styles */
+
+.spx-tab-group {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Tab bar ── */
+.spx-tab-bar {
+  display: flex;
+  background: #080f14;
+  border-bottom: 1px solid #1e2a30;
+  flex-shrink: 0;
+}
+
+.spx-tab {
+  flex: 1;
+  padding: 6px 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #3a6a5a;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+
+.spx-tab:hover {
+  color: #7abcaa;
+  background: #0a1518;
+}
+
+.spx-tab.active {
+  color: #00ffc8;
+  border-bottom-color: #00ffc8;
+  background: #0a1518;
+}
+
+/* ── Scrollable content area ── */
+.spx-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.spx-tab-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.spx-tab-content::-webkit-scrollbar-thumb {
+  background: #1e3040;
+  border-radius: 2px;
+}
+
+.spx-tab-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Empty state ── */
+.spx-tab-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 12px;
+  color: #2a4a3a;
+  text-align: center;
+}
+
+.spx-tab-empty span {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a3a2a;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+
+.spx-tab-empty p {
+  font-size: 10px;
+  color: #2a4a3a;
+}
+
+/* ── Accordion sections ── */
+.accordion-section {
+  border-bottom: 1px solid #0e1a20;
+}
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  background: #0a1418;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+  user-select: none;
+}
+
+.accordion-header:hover {
+  background: #0e1e28;
+}
+
+.accordion-header.open {
+  background: #0a1e28;
+  border-bottom: 1px solid #1e3040;
+}
+
+.accordion-arrow {
+  font-size: 9px;
+  color: #3a6a5a;
+  width: 10px;
+  flex-shrink: 0;
+  transition: color 0.12s;
+}
+
+.accordion-header.open .accordion-arrow {
+  color: #00ffc8;
+}
+
+.accordion-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6a9a8a;
+  transition: color 0.12s;
+}
+
+.accordion-header.open .accordion-label {
+  color: #00ffc8;
+}
+
+.accordion-header:hover .accordion-label {
+  color: #9abcaa;
+}
+
+.accordion-body {
+  background: #080e14;
+  border-top: 1px solid #0e1a20;
+}
+
+/* Subtle left accent on open sections */
+.accordion-section:has(.accordion-header.open) {
+  border-left: 2px solid #00ffc8;
+}
