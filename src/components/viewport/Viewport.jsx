@@ -18,6 +18,18 @@ import { registerPlugin, unregisterPlugin, getPlugins, getAllPlugins } from "../
 import { MATERIAL_PRESETS, MATERIAL_CATEGORIES, applyMaterialPreset } from "../../mesh/MaterialPresets";
 import { POSE_PRESETS, applyPose } from "../../mesh/PosePresets";
 import { CAMERA_SHOTS, DOF_PRESETS, applyCameraShot } from "../../mesh/CameraPresets";
+
+// Stubs for engines not yet migrated
+class FilmRendererEngine {
+  constructor(renderer, scene, cam) { this.renderer = renderer; this.scene = scene; this.cam = cam; }
+  render() {}
+  dispose() {}
+}
+class SculptEngine {
+  constructor() {}
+  sculpt() {}
+  dispose() {}
+}
 import { BRUSH_PRESETS, BRUSH_PRESET_CATEGORIES } from "../../mesh/SculptBrushPresets";
 import { TERRAIN_PRESETS, ALL_TERRAIN_TYPES } from "../../mesh/TerrainPresets";
 import { initFilmComposer, createProceduralHDRI, upgradeMaterialsToPhysical } from "../../mesh/FilmRenderer";
