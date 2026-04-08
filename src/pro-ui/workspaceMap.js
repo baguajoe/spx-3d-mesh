@@ -9,6 +9,7 @@ export const WORKSPACES_MAP = {
   ANIMATION:    "Animation",
   SHADING:      "Shading",
   PERFORMANCE:  "Performance",
+  PANELS:       "Panels",
 };
 
 export const WORKSPACES = Object.values(WORKSPACES_MAP);
