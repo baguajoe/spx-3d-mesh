@@ -1,0 +1,60 @@
+#!/bin/sh
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  SPX 3D — Pre-commit checks"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# CSS conflict check
+python3 - << 'PYEOF'
+import os, re, sys
+from collections import defaultdict
+
+styles_dir = 'src/styles'
+if not os.path.exists(styles_dir):
+    print("✓ No styles dir found, skipping CSS check")
+    sys.exit(0)
+
+class_locations = defaultdict(list)
+for fname in sorted(os.listdir(styles_dir)):
+    if not fname.endswith('.css'):
+        continue
+    with open(os.path.join(styles_dir, fname)) as f:
+        content = f.read()
+    classes = re.findall(r'\.([\w-]+)\s*[{,]', content)
+    for cls in classes:
+        class_locations[cls].append(fname)
+
+ALLOWED = {'is-active', 'active', 'disabled', 'hidden', 'open', 'closed', 'selected', 'focused'}
+conflicts = {k: list(set(v)) for k, v in class_locations.items()
+             if len(set(v)) > 1 and k not in ALLOWED}
+
+if conflicts:
+    print(f"❌ CSS CONFLICTS ({len(conflicts)} found):")
+    for cls, files in sorted(conflicts.items()):
+        print(f"   .{cls}  →  {', '.join(files)}")
+    print("\nFix conflicts before committing.")
+    sys.exit(1)
+
+print(f"✓ CSS OK — {len(class_locations)} classes, 0 conflicts")
+PYEOF
+
+CSS_EXIT=$?
+if [ $CSS_EXIT -ne 0 ]; then
+  exit 1
+fi
+
+# Run tests
+echo ""
+echo "Running tests..."
+npx vitest run --reporter=verbose 2>&1
+TEST_EXIT=$?
+
+if [ $TEST_EXIT -ne 0 ]; then
+  echo ""
+  echo "❌ Tests failed. Fix before committing."
+  exit 1
+fi
+
+echo ""
+echo "✓ All pre-commit checks passed"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

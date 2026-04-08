@@ -83,76 +83,35 @@ input, select { font-family: inherit; }
 /* ══════════════════════════════════════════════════════════════════════════
    SHELL GRID
    ══════════════════════════════════════════════════════════════════════════ */
-.spx-shell {
-  display: grid;
-  grid-template-rows: var(--mbar-h) var(--tabs-h) 1fr var(--bottom-h) var(--sbar-h);
-  width: 100vw; height: 100vh;
-  overflow: hidden;
-}
+
 
 /* ── Menu bar ────────────────────────────────────────────────────────────── */
-.spx-menubar {
-  display: flex; align-items: stretch;
-  height: var(--mbar-h);
-  background: var(--d1); border-bottom: 1px solid var(--b1);
-  padding: 0 4px; user-select: none; z-index: 200;
-}
 
-.spx-brand {
-  font-family: var(--mono); font-size: 10px; font-weight: 600;
-  color: var(--ac-text); letter-spacing: 0.2em; text-transform: uppercase;
-  display: flex; align-items: center;
-  padding: 0 10px 0 4px; margin-right: 4px;
-  border-right: 1px solid var(--b2); white-space: nowrap;
-}
 
-.spx-menus { display: flex; align-items: stretch; flex: 1; }
+
+
+
 
 /* Dropdown menus */
-.menu-item { position: relative; display: flex; align-items: stretch; }
 
-.menu-btn {
-  display: flex; align-items: center; padding: 0 9px;
-  font-size: 11px; font-weight: 400; color: var(--t1);
-  background: transparent; border: none; cursor: pointer;
-  white-space: nowrap; transition: color 60ms, background 60ms;
-}
-.menu-btn:hover, .menu-btn--open { color: var(--t0); background: var(--d5); }
 
-.menu-dropdown {
-  position: absolute; top: 100%; left: 0; min-width: 220px;
-  background: var(--d3); border: 1px solid var(--b3); border-top: none;
-  z-index: 999; box-shadow: 0 8px 24px rgba(0,0,0,0.7);
-  border-radius: 0 0 var(--r1) var(--r1); overflow: hidden;
-}
 
-.menu-drop-item {
-  display: flex; align-items: center; justify-content: space-between;
-  width: 100%; padding: 5px 12px; font-size: 11px;
-  color: var(--t1); background: transparent; border: none;
-  cursor: pointer; text-align: left; gap: 16px;
-  transition: background 50ms, color 50ms;
-}
+.menu-btn:hover, 
+
+
+
+
 .menu-drop-item:hover { background: var(--ac-dim); color: var(--t0); }
-.menu-drop-label { flex: 1; }
-.menu-drop-key { font-family: var(--mono); font-size: 9px; color: var(--t3); white-space: nowrap; }
-.menu-drop-item:hover .menu-drop-key { color: var(--ac-text); }
-.menu-sep { height: 1px; background: var(--b2); margin: 2px 0; }
 
-.spx-menubar-right { display: flex; align-items: center; gap: 4px; margin-left: auto; padding-right: 4px; }
-.spx-engine-badge {
-  font-family: var(--mono); font-size: 9px; color: var(--t3);
-  background: var(--d3); border: 1px solid var(--b2);
-  border-radius: var(--r0); padding: 1px 5px; letter-spacing: 0.08em;
-}
+
+.menu-drop-item:hover 
+
+
+
+
 
 /* ── Workspace tabs ──────────────────────────────────────────────────────── */
-.spx-workspaces {
-  display: flex; align-items: stretch; height: var(--tabs-h);
-  background: var(--d1); border-bottom: 1px solid var(--b2);
-  padding: 0 4px; gap: 1px; overflow-x: auto;
-  scrollbar-width: none; z-index: 90;
-}
+
 .spx-workspaces::-webkit-scrollbar { display: none; }
 
 .spx-workspace {
@@ -168,24 +127,11 @@ input, select { font-family: inherit; }
 .spx-workspace.active { color: var(--ac-text); border-bottom-color: var(--ac); background: var(--d3); }
 
 /* ── Main 3-column ───────────────────────────────────────────────────────── */
-.spx-main {
-  display: grid;
-  grid-template-columns: var(--left-w) 36px 1fr var(--right-w);
-  overflow: hidden; min-height: 0;
-  height: 100%;
-  width: 100%;
-}
 
-.spx-left {
-  background: var(--d2); border-right: 1px solid var(--b1);
-  overflow-y: auto; overflow-x: hidden; min-height: 0;
-  display: flex; flex-direction: column;
-}
 
-.spx-center {
-  background: var(--d0); position: relative;
-  overflow: hidden; min-height: 0;
-}
+
+
+
 
 .mesh-editor-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .mesh-editor-canvas canvas { display: block; width: 100% !important; height: 100% !important; outline: none; }
@@ -198,29 +144,17 @@ input, select { font-family: inherit; }
   font-family: var(--mono); font-size: 9px; color: var(--t4);
   letter-spacing: 0.14em; pointer-events: none; z-index: 20;
 }
-.spx-right {
-  background: var(--d2); border-left: 1px solid var(--b1);
-  overflow-y: auto; overflow-x: hidden; min-height: 0;
-  display: flex; flex-direction: column;
-}
+
 
 /* ── Bottom panel (timeline) ─────────────────────────────────────────────── */
-.spx-bottom {
-  background: var(--d1); border-top: 1px solid var(--b2);
-  overflow: hidden; min-height: 0;
-  display: flex; flex-direction: column;
-}
+
 
 /* ── Status bar ──────────────────────────────────────────────────────────── */
-.spx-statusbar {
-  display: flex; align-items: center; gap: 6px;
-  height: var(--sbar-h); background: var(--d1);
-  border-top: 1px solid var(--b1); padding: 0 8px; z-index: 100;
-}
-.spx-status-workspace { font-family: var(--mono); font-size: 9px; font-weight: 600; color: var(--ac-text); letter-spacing: 0.14em; }
+
+
 .spx-statusbar span { font-family: var(--mono); font-size: 9px; color: var(--t3); letter-spacing: 0.06em; }
-.spx-status-sep { color: var(--b4) !important; }
-.spx-statusbar-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+
 
 /* ══════════════════════════════════════════════════════════════════════════
    MESH EDITOR PANEL (.mep-*)
@@ -745,18 +679,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .spnl-driver-target { font-size: 9px; color: var(--ac-text); min-width: 80px; }
 .spnl-driver-expr { font-size: 9px; color: var(--t2); font-family: var(--mono); }
 
-.spx-tool-strip {
-  width: 36px;
-  background: #1a1a1a;
-  border-right: 1px solid #3a3a3a;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 6px 0;
-  gap: 2px;
-  flex-shrink: 0;
-  overflow-y: auto;
-}
+
 
 
 /* ---- viewport toolbar ---- */
@@ -1227,8 +1150,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 }
 
 /* Sidebar z-index */
-.spx-left  { z-index: 100; }
-.spx-right { z-index: 100; }
+
+
 
 /* Floating panels — above content, below tabs */
 .material-panel-float,
@@ -1250,7 +1173,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 /* Tab row — always on top */
 .spx-native-workspace-tabs { z-index: 1000 !important; }
 .workspace-tools-strip      { z-index: 91  !important; }
-.spx-menubar                { z-index: 1001 !important; }
+
 
 /* Generator panels — proper panel sizing */
 .spx-panel-content,
@@ -1261,36 +1184,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 }
 
 /* Status bar */
-.spx-statusbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 20px;
-  z-index: 1000;
-  background: #0d1117;
-  border-top: 1px solid #21262d;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  color: #8b949e;
-}
+
 
 /* ── Panel overflow fix ──────────────────────────────────────────────────── */
-.spx-right { overflow-y: auto; }
-.spx-left  { overflow-y: auto; }
+
+
 
 
 /* ── Right panel scroll padding — clears timeline ───────────────────────── */
-.spx-right {
-  padding-bottom: 8px;
-}
+
 
 
 /* Fix left panel text clipping */
-.spx-left { min-width: 180px; }
+
 .spx-left .mesh-editor-panel,
 .spx-left > div { padding-left: 4px; }
 

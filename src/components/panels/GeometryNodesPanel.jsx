@@ -1,161 +1,301 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback } from 'react';
 
-const NODE_DEFS = {
+// Node type definitions
+const NODE_TYPES = {
   // Input
-  "Group Input":       { cat:"Input",    col:"#333344", ins:[], outs:["Geometry","Value","Vector","Boolean"] },
-  "Object Info":       { cat:"Input",    col:"#333344", ins:["Object"], outs:["Location","Rotation","Scale","Geometry"] },
-  "Value":             { cat:"Input",    col:"#333344", ins:[], outs:["Value"] },
-  "Integer":           { cat:"Input",    col:"#333344", ins:[], outs:["Integer"] },
-  "Vector":            { cat:"Input",    col:"#333344", ins:[], outs:["Vector"] },
-  "Boolean":           { cat:"Input",    col:"#333344", ins:[], outs:["Boolean"] },
-  "Collection Info":   { cat:"Input",    col:"#333344", ins:["Collection"], outs:["Geometry","Index"] },
-  // Output
-  "Group Output":      { cat:"Output",   col:"#443333", ins:["Geometry"], outs:[] },
+  value:        { label: 'Value',         category: 'Input',    color: '#2a4a6a', outputs: ['value'], inputs: [] },
+  vector:       { label: 'Vector',        category: 'Input',    color: '#2a4a6a', outputs: ['vector'], inputs: [] },
+  integer:      { label: 'Integer',       category: 'Input',    color: '#2a4a6a', outputs: ['value'], inputs: [] },
   // Geometry
-  "Mesh Primitive":    { cat:"Geometry", col:"#1a4a2a", ins:["Size","Vertices","Radius"], outs:["Mesh"] },
-  "Join Geometry":     { cat:"Geometry", col:"#1a4a2a", ins:["Geometry","Geometry"], outs:["Geometry"] },
-  "Transform":         { cat:"Geometry", col:"#1a4a2a", ins:["Geometry","Translation","Rotation","Scale"], outs:["Geometry"] },
-  "Set Position":      { cat:"Geometry", col:"#1a4a2a", ins:["Geometry","Selection","Position","Offset"], outs:["Geometry"] },
-  "Delete Geometry":   { cat:"Geometry", col:"#1a4a2a", ins:["Geometry","Selection","Mode"], outs:["Geometry"] },
-  "Merge by Distance": { cat:"Geometry", col:"#1a4a2a", ins:["Geometry","Selection","Distance"], outs:["Geometry"] },
-  "Subdivide Mesh":    { cat:"Geometry", col:"#1a4a2a", ins:["Mesh","Level"], outs:["Mesh"] },
-  "Dual Mesh":         { cat:"Geometry", col:"#1a4a2a", ins:["Mesh"], outs:["Dual Mesh"] },
-  "Extrude Mesh":      { cat:"Geometry", col:"#1a4a2a", ins:["Mesh","Selection","Offset","Scale"], outs:["Mesh","Top","Side"] },
-  "Flip Faces":        { cat:"Geometry", col:"#1a4a2a", ins:["Mesh","Selection"], outs:["Mesh"] },
-  "Mesh Boolean":      { cat:"Geometry", col:"#1a4a2a", ins:["Mesh 1","Mesh 2","Operation"], outs:["Mesh"] },
-  "Convex Hull":       { cat:"Geometry", col:"#1a4a2a", ins:["Geometry"], outs:["Convex Hull"] },
+  mesh_prim:    { label: 'Mesh Primitive', category: 'Geometry', color: '#2a6a4a', outputs: ['geometry'], inputs: [] },
+  transform:    { label: 'Transform',     category: 'Geometry', color: '#2a6a4a', outputs: ['geometry'], inputs: ['geometry', 'translation', 'rotation', 'scale'] },
+  merge:        { label: 'Merge Geometry', category: 'Geometry', color: '#2a6a4a', outputs: ['geometry'], inputs: ['geometry', 'geometry'] },
+  subdivide:    { label: 'Subdivide',     category: 'Geometry', color: '#2a6a4a', outputs: ['geometry'], inputs: ['geometry', 'level'] },
+  // Mesh ops
+  extrude:      { label: 'Extrude Faces', category: 'Mesh',     color: '#6a4a2a', outputs: ['geometry'], inputs: ['geometry', 'offset', 'scale'] },
+  bevel:        { label: 'Bevel',         category: 'Mesh',     color: '#6a4a2a', outputs: ['geometry'], inputs: ['geometry', 'amount', 'segments'] },
+  boolean:      { label: 'Boolean',       category: 'Mesh',     color: '#6a4a2a', outputs: ['geometry'], inputs: ['geometry', 'geometry', 'operation'] },
   // Instances
-  "Instance on Points":{ cat:"Instances",col:"#1a2a4a", ins:["Points","Selection","Instance","Pick Instance","Index","Rotation","Scale"], outs:["Instances"] },
-  "Realize Instances": { cat:"Instances",col:"#1a2a4a", ins:["Geometry"], outs:["Geometry"] },
-  "Rotate Instances":  { cat:"Instances",col:"#1a2a4a", ins:["Instances","Selection","Rotation","Pivot Point","Local Space"], outs:["Instances"] },
-  "Scale Instances":   { cat:"Instances",col:"#1a2a4a", ins:["Instances","Selection","Scale","Center","Local Space"], outs:["Instances"] },
-  // Point
-  "Distribute Points on Faces":{ cat:"Point",col:"#2a1a4a", ins:["Mesh","Selection","Distance Min","Density Max","Seed"], outs:["Points","Normal","Rotation"] },
-  "Points":            { cat:"Point",    col:"#2a1a4a", ins:["Count","Position","Radius"], outs:["Points"] },
-  // Curve
-  "Curve Line":        { cat:"Curve",    col:"#2a2a1a", ins:["Start","End"], outs:["Curve"] },
-  "Curve Circle":      { cat:"Curve",    col:"#2a2a1a", ins:["Resolution","Radius","Point 1","Point 2","Point 3"], outs:["Curve","Center","Normal","Radius"] },
-  "Curve to Mesh":     { cat:"Curve",    col:"#2a2a1a", ins:["Curve","Profile Curve","Fill Caps"], outs:["Mesh"] },
-  "Fill Curve":        { cat:"Curve",    col:"#2a2a1a", ins:["Curve","Mode"], outs:["Mesh"] },
-  "Resample Curve":    { cat:"Curve",    col:"#2a2a1a", ins:["Curve","Selection","Mode","Count","Length"], outs:["Curve"] },
-  // Math
-  "Math":              { cat:"Utilities",col:"#3a2a1a", ins:["Value","Value"], outs:["Value"] },
-  "Vector Math":       { cat:"Utilities",col:"#3a2a1a", ins:["Vector","Vector"], outs:["Vector","Value"] },
-  "Boolean Math":      { cat:"Utilities",col:"#3a2a1a", ins:["Boolean","Boolean"], outs:["Boolean"] },
-  "Random Value":      { cat:"Utilities",col:"#3a2a1a", ins:["Min","Max","ID","Seed"], outs:["Value","Boolean","Vector","Rotation"] },
-  "Map Range":         { cat:"Utilities",col:"#3a2a1a", ins:["Value","From Min","From Max","To Min","To Max","Clamp"], outs:["Result"] },
-  "Mix":               { cat:"Utilities",col:"#3a2a1a", ins:["Factor","A","B"], outs:["Result"] },
-  // Attribute
-  "Store Named Attribute":{ cat:"Attribute",col:"#2a3a2a", ins:["Geometry","Selection","Name","Value"], outs:["Geometry"] },
-  "Named Attribute":   { cat:"Attribute",col:"#2a3a2a", ins:["Name"], outs:["Attribute","Exists"] },
-  "Capture Attribute": { cat:"Attribute",col:"#2a3a2a", ins:["Geometry","Value","Domain"], outs:["Geometry","Attribute"] },
+  instance:     { label: 'Instance on Points', category: 'Instances', color: '#6a2a6a', outputs: ['instances'], inputs: ['geometry', 'instance', 'scale'] },
+  // Output
+  output:       { label: 'Geometry Output', category: 'Output', color: '#1a1a1a', outputs: [], inputs: ['geometry'] },
 };
 
-const CATS = ["Input","Output","Geometry","Instances","Point","Curve","Utilities","Attribute"];
+const DEFAULT_NODES = [
+  { id: 1, type: 'mesh_prim',  x: 20,  y: 30,  params: { primitive: 'box', size: 1 } },
+  { id: 2, type: 'subdivide',  x: 160, y: 30,  params: { level: 2 } },
+  { id: 3, type: 'output',     x: 300, y: 30,  params: {} },
+];
 
-let gnid = 0;
-const mkNode = (type, x, y) => {
-  const def = NODE_DEFS[type];
-  return { id:++gnid, type, x, y, ins:def.ins.map((n,i)=>({id:`${gnid}-i${i}`,name:n})), outs:def.outs.map((n,i)=>({id:`${gnid}-o${i}`,name:n})) };
-};
+const DEFAULT_EDGES = [
+  { id: 1, from: 1, fromPort: 'geometry', to: 2, toPort: 'geometry' },
+  { id: 2, from: 2, fromPort: 'geometry', to: 3, toPort: 'geometry' },
+];
 
-function GNNodeCard({ node, selected, onSelect, onDrag }) {
-  const def = NODE_DEFS[node.type];
-  return (
-    <div
-      className={`spx-gn-node${selected?" spx-gn-node--selected":""}`}
-      ref={el=>{if(el){el.style.left=node.x+"px";el.style.top=node.y+"px";}}}
-      onMouseDown={e=>{e.stopPropagation();onSelect(node.id);onDrag(e,node.id);}}
-    >
-      <div className="spx-gn-node-hdr" ref={el=>{if(el)el.style.background=def.col;}}>
-        <span className="spx-gn-node-title">{node.type}</span>
-        <span className="spx-gn-node-cat">{def.cat}</span>
-      </div>
-      <div className="spx-gn-node-body">
-        {node.outs.map(o=>(
-          <div key={o.id} className="spx-gn-socket-row spx-gn-socket-row--out">
-            <span className="spx-gn-label">{o.name}</span>
-            <div className="spx-gn-socket spx-gn-socket--out"/>
-          </div>
-        ))}
-        {node.ins.map(i=>(
-          <div key={i.id} className="spx-gn-socket-row spx-gn-socket-row--in">
-            <div className="spx-gn-socket spx-gn-socket--in"/>
-            <span className="spx-gn-label">{i.name}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+// Simple node executor
+function executeGraph(nodes, edges) {
+  const results = {};
+  const sorted = [...nodes]; // topological order assumed for now
+
+  for (const node of sorted) {
+    const def = NODE_TYPES[node.type];
+    if (!def) continue;
+
+    // Gather inputs from connected edges
+    const inputs = {};
+    for (const edge of edges) {
+      if (edge.to === node.id) {
+        inputs[edge.toPort] = results[`${edge.from}:${edge.fromPort}`];
+      }
+    }
+
+    // Execute node
+    let output = null;
+    switch (node.type) {
+      case 'mesh_prim':
+        output = { type: 'geometry', primitive: node.params.primitive || 'box', size: node.params.size || 1 };
+        break;
+      case 'subdivide':
+        output = { ...inputs.geometry, subdivided: true, level: node.params.level || 1 };
+        break;
+      case 'transform':
+        output = { ...inputs.geometry, transformed: true, translation: node.params.translation };
+        break;
+      case 'extrude':
+        output = { ...inputs.geometry, extruded: true, offset: node.params.offset || 0.2 };
+        break;
+      case 'bevel':
+        output = { ...inputs.geometry, beveled: true, amount: node.params.amount || 0.1 };
+        break;
+      case 'merge':
+        output = { type: 'geometry', merged: true, sources: Object.values(inputs) };
+        break;
+      case 'boolean':
+        output = { type: 'geometry', boolean: node.params.operation || 'union', sources: Object.values(inputs) };
+        break;
+      case 'instance':
+        output = { type: 'instances', source: inputs.geometry, instance: inputs.instance };
+        break;
+      case 'value':
+        output = node.params.value ?? 1.0;
+        break;
+      case 'vector':
+        output = [node.params.x ?? 0, node.params.y ?? 0, node.params.z ?? 0];
+        break;
+      case 'output':
+        results['__output__'] = inputs.geometry;
+        break;
+      default:
+        output = inputs.geometry;
+    }
+
+    if (node.type !== 'output' && def.outputs[0]) {
+      results[`${node.id}:${def.outputs[0]}`] = output;
+    }
+  }
+
+  return results['__output__'] || null;
 }
 
-export default function GeometryNodesPanel({ onAction }) {
-  const [nodes,   setNodes]   = useState(()=>[mkNode("Group Input",40,100),mkNode("Instance on Points",260,60),mkNode("Mesh Primitive",40,260),mkNode("Group Output",520,100)]);
-  const [sel,     setSel]     = useState(null);
-  const [addCat,  setAddCat]  = useState("Geometry");
-  const [search,  setSearch]  = useState("");
-  const [zoom,    setZoom]    = useState(1);
-  const [pan,     setPan]     = useState({x:20,y:20});
+export default function GeometryNodesPanel() {
+  const [nodes, setNodes] = useState(DEFAULT_NODES);
+  const [edges, setEdges] = useState(DEFAULT_EDGES);
+  const [selected, setSelected] = useState(null);
+  const [result, setResult] = useState(null);
+  const [dragging, setDragging] = useState(null);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const canvasRef = useRef(null);
 
-  const filtered = Object.entries(NODE_DEFS).filter(([n,d])=>d.cat===addCat&&(!search||n.toLowerCase().includes(search.toLowerCase())));
+  const selectedNode = nodes.find(n => n.id === selected);
 
-  const addNode=(type)=>setNodes(p=>[...p,mkNode(type,80-pan.x,80-pan.y)]);
-  const delSel=()=>{if(!sel)return;setNodes(p=>p.filter(n=>n.id!==sel));setSel(null);};
-
-  const onDrag=useCallback((e,id)=>{
-    const node=nodes.find(n=>n.id===id);
-    const sx=e.clientX-node.x,sy=e.clientY-node.y;
-    const mv=(ev)=>setNodes(p=>p.map(n=>n.id===id?{...n,x:ev.clientX-sx,y:ev.clientY-sy}:n));
-    const up=()=>{window.removeEventListener("mousemove",mv);window.removeEventListener("mouseup",up);};
-    window.addEventListener("mousemove",mv);window.addEventListener("mouseup",up);
-  },[nodes]);
-
-  const onCanvasDown=(e)=>{
-    if(e.target===canvasRef.current||e.target.classList.contains("spx-gn-canvas-inner")){
-      setSel(null);
-      const sx=e.clientX-pan.x,sy=e.clientY-pan.y;
-      const mv=(ev)=>setPan({x:ev.clientX-sx,y:ev.clientY-sy});
-      const up=()=>{window.removeEventListener("mousemove",mv);window.removeEventListener("mouseup",up);};
-      window.addEventListener("mousemove",mv);window.addEventListener("mouseup",up);
-    }
+  const execute = () => {
+    const output = executeGraph(nodes, edges);
+    setResult(output);
   };
 
+  const addNode = (type) => {
+    const id = Date.now();
+    setNodes(prev => [...prev, { id, type, x: 80 + Math.random() * 100, y: 80 + Math.random() * 80, params: {} }]);
+    setShowAddMenu(false);
+  };
+
+  const deleteNode = (id) => {
+    setNodes(prev => prev.filter(n => n.id !== id));
+    setEdges(prev => prev.filter(e => e.from !== id && e.to !== id));
+    if (selected === id) setSelected(null);
+  };
+
+  const updateParam = (nodeId, key, val) => {
+    setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, params: { ...n.params, [key]: val } } : n));
+  };
+
+  const categories = [...new Set(Object.values(NODE_TYPES).map(n => n.category))];
+
   return (
-    <div className="spx-gn-panel">
-      <div className="spx-panel-header">
-        <span className="spx-panel-title">Geometry Nodes</span>
-        <div className="spx-gn-hdr-actions">
-          <button className="spx-nm-hdr-btn" onClick={()=>setZoom(z=>Math.max(0.2,z-0.1))}>−</button>
-          <button className="spx-nm-hdr-btn" onClick={()=>setZoom(1)}>1:1</button>
-          <button className="spx-nm-hdr-btn" onClick={()=>setZoom(z=>Math.min(3,z+0.1))}>+</button>
-          <button className="spx-nm-hdr-btn spx-nm-hdr-btn--danger" onClick={delSel} disabled={!sel}>Del</button>
-          <button className="spx-nm-hdr-btn spx-nm-hdr-btn--teal" onClick={()=>onAction?.("gn_apply")}>Apply</button>
-        </div>
+    <div className="panel-section">
+      <div className="panel-header">Geometry Nodes</div>
+
+      {/* Toolbar */}
+      <div className="gn-toolbar">
+        <button className="panel-btn primary" onClick={execute}>▶ Execute</button>
+        <button className="panel-btn" onClick={() => setShowAddMenu(v => !v)}>+ Add Node</button>
+        <button className="panel-btn" onClick={() => { setNodes(DEFAULT_NODES); setEdges(DEFAULT_EDGES); setResult(null); }}>Reset</button>
       </div>
-      <div className="spx-nm-body">
-        <div className="spx-nm-canvas" ref={canvasRef} onMouseDown={onCanvasDown} onWheel={e=>{e.preventDefault();setZoom(z=>Math.max(0.2,Math.min(3,z-e.deltaY*0.001)));}}>
-          <div className="spx-gn-canvas-inner" ref={el=>{if(el){el.style.transform=`translate(${pan.x}px,${pan.y}px) scale(${zoom})`;el.style.transformOrigin="0 0";}}}>
-            {nodes.map(n=><GNNodeCard key={n.id} node={n} selected={sel===n.id} onSelect={setSel} onDrag={onDrag}/>)}
-          </div>
+
+      {/* Add node menu */}
+      {showAddMenu && (
+        <div className="gn-add-menu">
+          {categories.map(cat => (
+            <div key={cat} className="gn-add-category">
+              <div className="gn-add-cat-label">{cat}</div>
+              {Object.entries(NODE_TYPES)
+                .filter(([, def]) => def.category === cat)
+                .map(([type, def]) => (
+                  <button key={type} className="gn-add-node-btn" onClick={() => addNode(type)}>
+                    {def.label}
+                  </button>
+                ))}
+            </div>
+          ))}
         </div>
-        <div className="spx-nm-sidebar">
-          <div className="spx-nm-sidebar-hdr">Add Node</div>
-          <input className="spx-nm-search" type="text" placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)}/>
-          <div className="spx-nm-cats">
-            {CATS.map(c=><button key={c} className={`spx-nm-cat-btn${addCat===c?" spx-nm-cat-btn--active":""}`} onClick={()=>setAddCat(c)}>{c}</button>)}
-          </div>
-          <div className="spx-nm-node-list">
-            {filtered.map(([name])=><button key={name} className="spx-nm-add-btn" onClick={()=>addNode(name)}>{name}</button>)}
-          </div>
-          <div className="spx-nm-presets-hdr">Presets</div>
-          <div className="spx-nm-presets">
-            {["Scatter on Surface","Procedural City","Wire Frame","Array Modifier","Random Placement","Voronoi Fracture","Hair System","Ivy Generator","Moss Scatter","Crystal Growth"].map(p=>(
-              <button key={p} className="spx-nm-preset-btn" onClick={()=>onAction?.(`gn_preset_${p.toLowerCase().replace(/ /g,"_")}`)}>{p}</button>
-            ))}
-          </div>
-        </div>
+      )}
+
+      {/* Node canvas */}
+      <div className="gn-canvas" ref={canvasRef}>
+        {/* Edges */}
+        <svg className="gn-edges">
+          {edges.map(edge => {
+            const fromNode = nodes.find(n => n.id === edge.from);
+            const toNode = nodes.find(n => n.id === edge.to);
+            if (!fromNode || !toNode) return null;
+            const x1 = fromNode.x + 110;
+            const y1 = fromNode.y + 20;
+            const x2 = toNode.x;
+            const y2 = toNode.y + 20;
+            const cx = (x1 + x2) / 2;
+            return (
+              <path key={edge.id}
+                d={`M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`}
+                stroke="#00ffc8" strokeWidth="1.5" fill="none" opacity="0.6" />
+            );
+          })}
+        </svg>
+
+        {/* Nodes */}
+        {nodes.map(node => {
+          const def = NODE_TYPES[node.type];
+          if (!def) return null;
+          return (
+            <div key={node.id}
+              className={`gn-node ${selected === node.id ? 'selected' : ''}`}
+              style={{ left: node.x, top: node.y, borderTopColor: def.color }}
+              onClick={() => setSelected(node.id === selected ? null : node.id)}>
+              <div className="gn-node-header" style={{ background: def.color }}>
+                <span>{def.label}</span>
+                <button className="gn-node-del" onClick={e => { e.stopPropagation(); deleteNode(node.id); }}>✕</button>
+              </div>
+              <div className="gn-node-body">
+                {def.inputs.map((inp, i) => (
+                  <div key={i} className="gn-port gn-port-in">
+                    <div className="gn-port-dot" />
+                    <span>{inp}</span>
+                  </div>
+                ))}
+                {def.outputs.map((out, i) => (
+                  <div key={i} className="gn-port gn-port-out">
+                    <span>{out}</span>
+                    <div className="gn-port-dot" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {/* Node properties */}
+      {selectedNode && (
+        <div className="panel-group">
+          <div className="panel-label">Node — {NODE_TYPES[selectedNode.type]?.label}</div>
+          {selectedNode.type === 'mesh_prim' && (
+            <>
+              <div className="panel-row">
+                <label>Primitive</label>
+                <select value={selectedNode.params.primitive || 'box'}
+                  onChange={e => updateParam(selectedNode.id, 'primitive', e.target.value)}>
+                  {['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'circle', 'icosphere'].map(p =>
+                    <option key={p}>{p}</option>
+                  )}
+                </select>
+              </div>
+              <div className="panel-row">
+                <label>Size</label>
+                <input type="range" min="0.1" max="5" step="0.1"
+                  value={selectedNode.params.size || 1}
+                  onChange={e => updateParam(selectedNode.id, 'size', +e.target.value)} />
+                <span>{(selectedNode.params.size || 1).toFixed(1)}</span>
+              </div>
+            </>
+          )}
+          {selectedNode.type === 'subdivide' && (
+            <div className="panel-row">
+              <label>Level</label>
+              <input type="range" min="1" max="6" step="1"
+                value={selectedNode.params.level || 1}
+                onChange={e => updateParam(selectedNode.id, 'level', +e.target.value)} />
+              <span>{selectedNode.params.level || 1}</span>
+            </div>
+          )}
+          {selectedNode.type === 'bevel' && (
+            <>
+              <div className="panel-row">
+                <label>Amount</label>
+                <input type="range" min="0" max="1" step="0.01"
+                  value={selectedNode.params.amount || 0.1}
+                  onChange={e => updateParam(selectedNode.id, 'amount', +e.target.value)} />
+                <span>{(selectedNode.params.amount || 0.1).toFixed(2)}</span>
+              </div>
+              <div className="panel-row">
+                <label>Segments</label>
+                <input type="range" min="1" max="8" step="1"
+                  value={selectedNode.params.segments || 2}
+                  onChange={e => updateParam(selectedNode.id, 'segments', +e.target.value)} />
+                <span>{selectedNode.params.segments || 2}</span>
+              </div>
+            </>
+          )}
+          {selectedNode.type === 'boolean' && (
+            <div className="panel-row">
+              <label>Operation</label>
+              <select value={selectedNode.params.operation || 'union'}
+                onChange={e => updateParam(selectedNode.id, 'operation', e.target.value)}>
+                <option value="union">Union</option>
+                <option value="intersect">Intersect</option>
+                <option value="difference">Difference</option>
+              </select>
+            </div>
+          )}
+          {selectedNode.type === 'value' && (
+            <div className="panel-row">
+              <label>Value</label>
+              <input type="number" step="0.1"
+                value={selectedNode.params.value ?? 1}
+                onChange={e => updateParam(selectedNode.id, 'value', +e.target.value)} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Execution result */}
+      {result && (
+        <div className="panel-group">
+          <div className="panel-label">Output</div>
+          <div className="gn-result">
+            <pre>{JSON.stringify(result, null, 2)}</pre>
+          </div>
+          <button className="panel-btn primary full-width">Apply to Scene</button>
+        </div>
+      )}
     </div>
   );
 }
