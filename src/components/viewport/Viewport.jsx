@@ -114,17 +114,17 @@ export default function Viewport(props) {
     cam.position.set(5,4,8); cam.lookAt(0,0,0);
     camRef.current = cam;
 
-    const grid = new THREE.GridHelper(20, 20, 0x334455, 0x222233);
+    const grid = new THREE.GridHelper(30, 30, 0x4488aa, 0x334455);
     grid.name = "_grid";
     grid.visible = true;
     scene.add(grid);
     // X axis line (red)
-    const xGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-10,0,0),new THREE.Vector3(10,0,0)]);
-    const xLine = new THREE.Line(xGeo, new THREE.LineBasicMaterial({color:0xaa3333,depthTest:false}));
+    const xGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-15,0,0),new THREE.Vector3(15,0,0)]);
+    const xLine = new THREE.Line(xGeo, new THREE.LineBasicMaterial({color:0xff3333,depthTest:false}));
     scene.add(xLine);
     // Z axis line (blue)
-    const zGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,-10),new THREE.Vector3(0,0,10)]);
-    const zLine = new THREE.Line(zGeo, new THREE.LineBasicMaterial({color:0x3333aa,depthTest:false}));
+    const zGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,-15),new THREE.Vector3(0,0,15)]);
+    const zLine = new THREE.Line(zGeo, new THREE.LineBasicMaterial({color:0x3333ff,depthTest:false}));
     scene.add(zLine);
     scene.add(new THREE.AxesHelper(1));
     scene.add(new THREE.AmbientLight(0xffffff,0.4));
@@ -169,7 +169,7 @@ export default function Viewport(props) {
     rigEngRef.current = rigEng;
 
     const cube = eng.createBox(2,2,2,"DefaultCube");
-    cube.position.set(0, 0, 0);
+    cube.position.set(0, 1, 0);
     cube.position.set(0, 0, 0);
     addOutline(cube); showOutline(cube,true);
     meshesRef.current = [cube];
