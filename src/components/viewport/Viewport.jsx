@@ -170,7 +170,7 @@ export default function Viewport(props) {
     modSysRef.current    = new ModifierSystem(scene);
     textRef.current      = new TextObject(scene);
     lightLinkRef.current = new LightLinking(renderer, scene);
-    const plugins        = { plugins: {}, ...Object.fromEntries(["registerPlugin","unregisterPlugin","getPlugins","getAllPlugins"].map(k => [k, () => {}])) };
+    const plugins        = { plugins: new Map(), size: 0, onSceneUpdate: () => {}, list: () => [], registerPlugin: () => {}, unregisterPlugin: () => {}, getPlugins: () => [], getAllPlugins: () => [] };
     pluginRef.current    = plugins;
     plugins.onSceneUpdate(scene);
     scriptRef.current = api;
