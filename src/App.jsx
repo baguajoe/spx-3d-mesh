@@ -28,6 +28,7 @@ import SimulationPanel     from "./components/panels/SimulationPanel";
 import ParticlePanel       from "./components/panels/ParticlePanel";
 import CompositingPanel    from "./components/panels/CompositingPanel";
 import NLAEditor           from "./components/panels/NLAEditor";
+import SpxTabGroup         from "./components/SpxTabGroup";
 import "./styles/spx-shell.css";
 import "./styles/pro-dark.css";
 import "./styles/advanced-rig.css";
@@ -70,6 +71,7 @@ const WORKSPACE_LAYOUTS = {
   Assets:      { left:"assets",    right:"properties", bottom:"timeline" },
   FilmMat:     { left:"scene",     right:"filmmat",    bottom:"timeline" },
   PathTrace:   { left:"scene",     right:"pathtrace",  bottom:"timeline" },
+  Panels:      { left:"scene",     right:"tabs",       bottom:"timeline" },
 };
 
 function LeftPanel({ panel, onAction, onSelectObject, onImport }) {
@@ -105,6 +107,7 @@ function RightPanel({ panel, onAction, selectedObject }) {
     case "grapheditor": return <GraphEditor/>;
     case "scripting":   return <ScriptingPanel onAction={onAction}/>;
     case "matpresets":  return <MaterialPresetsPanel onAction={onAction}/>;
+    case "tabs":        return <SpxTabGroup onAction={onAction}/>;
     default:           return <PropertyInspector selectedObject={selectedObject}/>;
   }
 }
@@ -178,6 +181,7 @@ export default function App() {
       case "ws_particles":   handleSetWorkspace("Particles");   break;
       case "ws_compositing": handleSetWorkspace("Compositing"); break;
       case "ws_nla":         handleSetWorkspace("NLA");         break;
+      case "ws_panels":      handleSetWorkspace("Panels");      break;
       case "openParticles":  handleSetWorkspace("Particles");   break;
       case "openCompositing":handleSetWorkspace("Compositing"); break;
       case "openNLA":        handleSetWorkspace("NLA");         break;
