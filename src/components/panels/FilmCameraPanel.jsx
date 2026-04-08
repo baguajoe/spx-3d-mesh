@@ -1,273 +1,87 @@
-import React, { useState } from "react";
-
-const SENSOR_PRESETS = [
-  { label: "Full Frame 35mm", w: 36,   h: 24   },
-  { label: "APS-C",           w: 23.5, h: 15.6 },
-  { label: "Micro 4/3",       w: 17.3, h: 13   },
-  { label: "Super 35",        w: 24.89,h: 18.66 },
-  { label: "IMAX 70mm",       w: 70.4, h: 52.6  },
-  { label: "VistaVision",     w: 37.7, h: 25.2  },
-  { label: "8K Digital",      w: 35.9, h: 20.2  },
-  { label: "Custom",          w: null, h: null   },
-];
-
-const LENS_PRESETS = [
-  { label: "14mm Ultra Wide",  fl: 14  },
-  { label: "24mm Wide",        fl: 24  },
-  { label: "35mm Standard",    fl: 35  },
-  { label: "50mm Normal",      fl: 50  },
-  { label: "85mm Portrait",    fl: 85  },
-  { label: "135mm Short Tele", fl: 135 },
-  { label: "200mm Tele",       fl: 200 },
-  { label: "400mm Super Tele", fl: 400 },
-  { label: "Custom",           fl: null },
-];
-
-const APERTURE_STOPS = [
-  "f/1.0","f/1.2","f/1.4","f/1.8","f/2.0","f/2.8","f/4","f/5.6","f/8","f/11","f/16","f/22"
-];
-
-const SHUTTER_ANGLES = [45, 90, 120, 144, 172.8, 180, 270, 360];
-const ASPECT_RATIOS  = ["1.33:1 (4:3)","1.78:1 (16:9)","1.85:1 (Flat)","2.00:1","2.35:1 (Scope)","2.39:1 (Scope)","2.76:1 (Ultra Panavision)"];
-
-function Section({ title, children, color = "teal", defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="spx-film-section">
-      <button className={`spx-film-section-hdr spx-film-section-hdr--${color}`} onClick={() => setOpen(v => !v)}>
-        <svg className={`spx-film-chevron${open ? " spx-film-chevron--open" : ""}`} viewBox="0 0 16 16" fill="currentColor" width="10" height="10">
-          <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-        </svg>
-        <span>{title}</span>
-      </button>
-      {open && <div className="spx-film-section-body">{children}</div>}
+import React, { useState, useEffect, useCallback } from 'react';
+import * as THREE from 'three';
+const C={bg:'#06060f',panel:'#0d1117',border:'#21262d',teal:'#00ffc8',orange:'#FF6600',text:'#e0e0e0',dim:'#8b949e',font:'JetBrains Mono,monospace'};
+function Slider({label,value,min,max,step=0.01,onChange,unit=''}){return(<div style={{marginBottom:5}}><div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:C.dim,marginBottom:1}}><span>{label}</span><span style={{color:C.teal,fontWeight:700}}>{step<0.1?Number(value).toFixed(2):Math.round(value)}{unit}</span></div><input type='range' min={min} max={max} step={step} value={value} onChange={e=>onChange(parseFloat(e.target.value))} style={{width:'100%',accentColor:C.teal,cursor:'pointer',height:3}}/></div>);}
+function Toggle({label,value,onChange}){return(<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}><span style={{fontSize:9,color:C.dim}}>{label}</span><div onClick={()=>onChange(!value)} style={{width:32,height:16,borderRadius:8,cursor:'pointer',position:'relative',background:value?C.teal:C.border}}><div style={{position:'absolute',top:2,left:value?16:2,width:12,height:12,borderRadius:'50%',background:value?C.bg:'#555',transition:'left 0.15s'}}/></div></div>);}
+function Section({title,color=C.teal,children,defaultOpen=true}){const [open,setOpen]=useState(defaultOpen);return(<div style={{marginBottom:6}}><div onClick={()=>setOpen(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 8px',background:'#0a0f1a',borderRadius:4,cursor:'pointer',borderLeft:`2px solid ${color}`,marginBottom:open?5:0}}><span style={{color,fontSize:9}}>{open?'▾':'▸'}</span><span style={{fontSize:9,fontWeight:700,color:C.text,letterSpacing:1}}>{title}</span></div>{open&&<div style={{paddingLeft:8}}>{children}</div>}</div>);}
+const FILM_GATES=[{label:'Full Frame 35mm',w:36,h:24},{label:'Super 35',w:24.89,h:18.67},{label:'IMAX 70mm',w:70.41,h:52.63},{label:'Anamorphic 2x',w:36,h:24},{label:'16mm',w:12.52,h:7.41},{label:'2.39:1 Scope',w:36,h:15.05}];
+const FOCAL_PRESETS=[{label:'14mm',v:14},{label:'24mm',v:24},{label:'35mm',v:35},{label:'50mm',v:50},{label:'85mm',v:85},{label:'135mm',v:135},{label:'200mm',v:200}];
+export default function FilmCameraPanel({cameraRef,rendererRef,sceneRef,open=true,onClose}){
+  const [fov,setFov]=useState(55);
+  const [focalLength,setFocalLength]=useState(35);
+  const [filmGate,setFilmGate]=useState(0);
+  const [near,setNear]=useState(0.01);
+  const [far,setFar]=useState(1000);
+  const [dofEnabled,setDofEnabled]=useState(false);
+  const [dofFocus,setDofFocus]=useState(5.0);
+  const [dofAperture,setDofAperture]=useState(0.025);
+  const [dofMaxBlur,setDofMaxBlur]=useState(0.01);
+  const [bookmarks,setBookmarks]=useState([]);
+  const [exposure,setExposure]=useState(1.1);
+  const cam=useCallback(()=>cameraRef?.current,[cameraRef]);
+  // Focal length → FOV conversion
+  const focalToFov=useCallback((fl,gateIdx)=>{
+    const gate=FILM_GATES[gateIdx]||FILM_GATES[0];
+    return 2*Math.atan(gate.h/(2*fl))*(180/Math.PI);
+  },[]);
+  useEffect(()=>{
+    const c=cam(); if(!c) return;
+    const newFov=focalToFov(focalLength,filmGate);
+    setFov(newFov);
+    c.fov=newFov; c.near=near; c.far=far;
+    c.updateProjectionMatrix();
+    c.userData.dofEnabled=dofEnabled;
+    c.userData.dofFocus=dofFocus;
+    c.userData.dofAperture=dofAperture;
+    c.userData.dofMaxBlur=dofMaxBlur;
+    // Wire DOF to BokehPass if composer has it
+    const composer=rendererRef?.current?._composer;
+    if(composer){
+      const bokeh=composer.passes?.find?.(p=>p.constructor?.name==='BokehPass');
+      if(bokeh){bokeh.enabled=dofEnabled;bokeh.uniforms?.focus?.value&&(bokeh.uniforms.focus.value=dofFocus);bokeh.uniforms?.aperture?.value&&(bokeh.uniforms.aperture.value=dofAperture);bokeh.uniforms?.maxblur?.value&&(bokeh.uniforms.maxblur.value=dofMaxBlur);}
+    }
+    if(rendererRef?.current) rendererRef.current.toneMappingExposure=exposure;
+  },[focalLength,filmGate,near,far,dofEnabled,dofFocus,dofAperture,dofMaxBlur,exposure]);
+  const saveBookmark=useCallback(()=>{
+    const c=cam(); if(!c) return;
+    setBookmarks(b=>[...b,{id:Date.now(),name:`Cam ${b.length+1}`,pos:c.position.clone(),rot:c.rotation.clone(),fov:c.fov}]);
+  },[cam]);
+  const restoreBookmark=useCallback((bm)=>{
+    const c=cam(); if(!c) return;
+    c.position.copy(bm.pos); c.rotation.copy(bm.rot);
+    c.fov=bm.fov; c.updateProjectionMatrix();
+    setFov(bm.fov);
+  },[cam]);
+  if(!open) return null;
+  return(<div style={{width:250,background:C.panel,borderRadius:6,border:`1px solid ${C.border}`,fontFamily:C.font,color:C.text,fontSize:11,boxShadow:'0 8px 32px rgba(0,0,0,0.7)',display:'flex',flexDirection:'column',maxHeight:680}}>
+    <div style={{background:'linear-gradient(90deg,#0a1520,#0d1117)',borderBottom:`1px solid ${C.border}`,padding:'8px 12px',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+      <div style={{width:6,height:6,borderRadius:'50%',background:'#ffaa00',boxShadow:'0 0 6px #ffaa00'}}/><span style={{fontSize:11,fontWeight:700,letterSpacing:2,color:'#ffaa00'}}>FILM CAMERA</span>
+      {onClose&&<span onClick={onClose} style={{marginLeft:'auto',cursor:'pointer',color:C.dim}}>×</span>}
     </div>
-  );
-}
-
-function Row({ label, children }) {
-  return (
-    <div className="spx-film-row">
-      <span className="spx-film-label">{label}</span>
-      <div className="spx-film-control">{children}</div>
+    <div style={{flex:1,overflowY:'auto',padding:'10px 12px'}}>
+      <Section title='FOCAL LENGTH' color='#ffaa00'>
+        <div style={{display:'flex',flexWrap:'wrap',gap:3,marginBottom:8}}>{FOCAL_PRESETS.map(p=><div key={p.v} onClick={()=>setFocalLength(p.v)} style={{padding:'3px 8px',borderRadius:3,cursor:'pointer',fontSize:9,fontWeight:700,border:`1px solid ${focalLength===p.v?'#ffaa00':C.border}`,color:focalLength===p.v?'#ffaa00':C.dim,background:focalLength===p.v?'rgba(255,170,0,0.1)':C.bg}}>{p.label}</div>)}</div>
+        <Slider label='FOCAL LENGTH' value={focalLength} min={8} max={500} step={1} onChange={setFocalLength} unit='mm'/>
+        <Slider label='FOV' value={fov} min={5} max={120} step={0.1} onChange={v=>{setFov(v);const c=cam();if(c){c.fov=v;c.updateProjectionMatrix();}}}/>
+      </Section>
+      <Section title='FILM GATE' color='#aaaaff'>
+        <div style={{display:'flex',flexDirection:'column',gap:3}}>{FILM_GATES.map((g,i)=><div key={i} onClick={()=>setFilmGate(i)} style={{padding:'4px 8px',borderRadius:4,cursor:'pointer',fontSize:9,fontWeight:700,border:`1px solid ${filmGate===i?'#aaaaff':C.border}`,color:filmGate===i?'#aaaaff':C.dim,background:filmGate===i?'rgba(170,170,255,0.1)':C.bg,display:'flex',justifyContent:'space-between'}}><span>{g.label}</span><span style={{color:C.dim}}>{g.w}×{g.h}mm</span></div>)}</div>
+      </Section>
+      <Section title='DEPTH OF FIELD' color='#ff88cc'>
+        <Toggle label='ENABLE DOF' value={dofEnabled} onChange={setDofEnabled}/>
+        <Slider label='FOCUS DISTANCE' value={dofFocus} min={0.1} max={100} step={0.1} onChange={setDofFocus} unit='m'/>
+        <Slider label='APERTURE (f/)' value={dofAperture} min={0.001} max={0.1} step={0.001} onChange={setDofAperture}/>
+        <Slider label='MAX BLUR' value={dofMaxBlur} min={0.001} max={0.05} step={0.001} onChange={setDofMaxBlur}/>
+      </Section>
+      <Section title='EXPOSURE' color={C.orange}>
+        <Slider label='EXPOSURE' value={exposure} min={0.1} max={4} step={0.05} onChange={setExposure}/>
+        <Slider label='NEAR CLIP' value={near} min={0.001} max={1} step={0.001} onChange={setNear}/>
+        <Slider label='FAR CLIP' value={far} min={10} max={10000} step={10} onChange={setFar}/>
+      </Section>
+      <Section title='CAMERA BOOKMARKS' color={C.teal} defaultOpen={false}>
+        <button onClick={saveBookmark} style={{width:'100%',padding:'6px 0',marginBottom:6,background:'rgba(0,255,200,0.1)',border:`1px solid ${C.teal}`,borderRadius:4,color:C.teal,fontFamily:C.font,fontSize:9,fontWeight:700,cursor:'pointer'}}>+ SAVE POSITION</button>
+        {bookmarks.map(bm=><div key={bm.id} onClick={()=>restoreBookmark(bm)} style={{padding:'4px 8px',marginBottom:3,borderRadius:4,cursor:'pointer',border:`1px solid ${C.border}`,background:C.bg,fontSize:9,color:C.dim,display:'flex',justifyContent:'space-between'}} onMouseEnter={e=>e.currentTarget.style.borderColor=C.teal} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}><span>{bm.name}</span><span>FOV {Math.round(bm.fov)}°</span></div>)}
+      </Section>
     </div>
-  );
-}
-
-function SliderRow({ label, value, min, max, step, unit, onChange }) {
-  return (
-    <Row label={label}>
-      <div className="spx-film-slider-row">
-        <input className="spx-film-range" type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(+e.target.value)} />
-        <span className="spx-film-val">{value}{unit}</span>
-      </div>
-    </Row>
-  );
-}
-
-export default function FilmCameraPanel({ onAction }) {
-  // ── Lens ─────────────────────────────────────────────────────────────────
-  const [lensPreset,   setLensPreset]   = useState("50mm Normal");
-  const [focalLength,  setFocalLength]  = useState(50);
-  const [aperture,     setAperture]     = useState("f/2.8");
-  const [focusDist,    setFocusDist]    = useState(5);
-  const [fStop,        setFStop]        = useState(2.8);
-
-  // ── Sensor ───────────────────────────────────────────────────────────────
-  const [sensorPreset, setSensorPreset] = useState("Full Frame 35mm");
-  const [sensorW,      setSensorW]      = useState(36);
-  const [sensorH,      setSensorH]      = useState(24);
-  const [aspect,       setAspect]       = useState("2.39:1 (Scope)");
-  const [resolution,   setResolution]   = useState("4096x2160");
-  const [fps,          setFps]          = useState(24);
-
-  // ── DOF ──────────────────────────────────────────────────────────────────
-  const [dofEnabled,   setDofEnabled]   = useState(true);
-  const [dofFStop,     setDofFStop]     = useState(2.8);
-  const [dofFocusDist, setDofFocusDist] = useState(5);
-  const [bokehBlades,  setBokehBlades]  = useState(8);
-  const [bokehRot,     setBokehRot]     = useState(0);
-  const [bokehRatio,   setBokehRatio]   = useState(1);
-  const [maxCOC,       setMaxCOC]       = useState(0.01);
-
-  // ── Motion Blur ───────────────────────────────────────────────────────────
-  const [motionBlur,   setMotionBlur]   = useState(true);
-  const [shutterAngle, setShutterAngle] = useState(180);
-  const [shutterOffset,setShutterOffset]= useState(0);
-  const [mbSamples,    setMbSamples]    = useState(8);
-
-  // ── Film Grain ────────────────────────────────────────────────────────────
-  const [grainEnabled, setGrainEnabled] = useState(true);
-  const [grainAmt,     setGrainAmt]     = useState(0.15);
-  const [grainSize,    setGrainSize]    = useState(0.5);
-  const [grainColor,   setGrainColor]   = useState(false);
-
-  // ── Lens FX ───────────────────────────────────────────────────────────────
-  const [chromaticAb,  setChromaticAb]  = useState(0.3);
-  const [lensDist,     setLensDist]     = useState(0);
-  const [vignette,     setVignette]     = useState(0.4);
-  const [lensFlare,    setLensFlare]    = useState(false);
-  const [anamorphic,   setAnamorphic]   = useState(false);
-
-  // ── Camera Transform ──────────────────────────────────────────────────────
-  const [camX,  setCamX]  = useState(0);
-  const [camY,  setCamY]  = useState(0);
-  const [camZ,  setCamZ]  = useState(0);
-  const [tiltX, setTiltX] = useState(0);
-  const [panY,  setPanY]  = useState(0);
-  const [rollZ, setRollZ] = useState(0);
-  const [shake, setShake] = useState(0);
-
-  // ── Apply ─────────────────────────────────────────────────────────────────
-  const apply = () => onAction?.("cam_apply", {
-    focalLength, aperture, focusDist, sensorW, sensorH, fps,
-    dof: { enabled: dofEnabled, fStop: dofFStop, focusDist: dofFocusDist, bokehBlades, bokehRot, bokehRatio, maxCOC },
-    motionBlur: { enabled: motionBlur, shutterAngle, shutterOffset, samples: mbSamples },
-    grain: { enabled: grainEnabled, amount: grainAmt, size: grainSize, color: grainColor },
-    lens: { chromaticAberration: chromaticAb, distortion: lensDist, vignette, lensFlare, anamorphic },
-    transform: { x: camX, y: camY, z: camZ, tiltX, panY, rollZ, shake },
-  });
-
-  const handleLensPreset = (label) => {
-    setLensPreset(label);
-    const p = LENS_PRESETS.find(p => p.label === label);
-    if (p?.fl) setFocalLength(p.fl);
-  };
-
-  const handleSensorPreset = (label) => {
-    setSensorPreset(label);
-    const p = SENSOR_PRESETS.find(p => p.label === label);
-    if (p?.w) { setSensorW(p.w); setSensorH(p.h); }
-  };
-
-  return (
-    <div className="spx-film-panel">
-      <div className="spx-panel-header">
-        <span className="spx-panel-title">Film Camera</span>
-        <button className="spx-panel-action-btn spx-film-apply-btn" onClick={apply}>Apply</button>
-      </div>
-
-      {/* Lens */}
-      <Section title="Lens" color="teal">
-        <Row label="Preset">
-          <select className="spx-film-select" value={lensPreset} onChange={e => handleLensPreset(e.target.value)}>
-            {LENS_PRESETS.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
-          </select>
-        </Row>
-        <SliderRow label="Focal Length" value={focalLength} min={8} max={800} step={1} unit="mm" onChange={setFocalLength} />
-        <Row label="Aperture">
-          <select className="spx-film-select" value={aperture} onChange={e => setAperture(e.target.value)}>
-            {APERTURE_STOPS.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </Row>
-        <SliderRow label="Focus Dist" value={focusDist} min={0.1} max={1000} step={0.1} unit="m" onChange={setFocusDist} />
-      </Section>
-
-      {/* Sensor */}
-      <Section title="Sensor & Format" color="orange">
-        <Row label="Sensor">
-          <select className="spx-film-select" value={sensorPreset} onChange={e => handleSensorPreset(e.target.value)}>
-            {SENSOR_PRESETS.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
-          </select>
-        </Row>
-        <Row label="Size">
-          <div className="spx-film-vec2">
-            <input className="spx-film-num" type="number" step={0.1} value={sensorW} onChange={e => setSensorW(+e.target.value)} />
-            <span className="spx-film-vec2-sep">×</span>
-            <input className="spx-film-num" type="number" step={0.1} value={sensorH} onChange={e => setSensorH(+e.target.value)} />
-            <span className="spx-film-vec2-unit">mm</span>
-          </div>
-        </Row>
-        <Row label="Aspect">
-          <select className="spx-film-select" value={aspect} onChange={e => setAspect(e.target.value)}>
-            {ASPECT_RATIOS.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </Row>
-        <Row label="Resolution">
-          <select className="spx-film-select" value={resolution} onChange={e => setResolution(e.target.value)}>
-            {["1920x1080","2560x1440","3840x2160","4096x2160","6144x3240","8192x4320","12288x6480"].map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </Row>
-        <Row label="Frame Rate">
-          <select className="spx-film-select" value={fps} onChange={e => setFps(+e.target.value)}>
-            {[12,16,23.976,24,25,29.97,30,48,60,120,240].map(f => <option key={f} value={f}>{f}fps</option>)}
-          </select>
-        </Row>
-      </Section>
-
-      {/* DOF */}
-      <Section title="Depth of Field" color="blue">
-        <Row label="Enabled">
-          <input className="spx-film-check" type="checkbox" checked={dofEnabled} onChange={e => setDofEnabled(e.target.checked)} />
-        </Row>
-        {dofEnabled && <>
-          <Row label="f-Stop">
-            <select className="spx-film-select" value={`f/${dofFStop}`} onChange={e => setDofFStop(parseFloat(e.target.value.replace("f/","")))}>
-              {APERTURE_STOPS.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </Row>
-          <SliderRow label="Focus Dist" value={dofFocusDist} min={0.1} max={1000} step={0.1} unit="m" onChange={setDofFocusDist} />
-          <SliderRow label="Bokeh Blades" value={bokehBlades} min={3} max={16} step={1} unit="" onChange={setBokehBlades} />
-          <SliderRow label="Bokeh Rotation" value={bokehRot} min={0} max={360} step={1} unit="°" onChange={setBokehRot} />
-          <SliderRow label="Bokeh Ratio" value={bokehRatio} min={0.1} max={2} step={0.01} unit="x" onChange={setBokehRatio} />
-          <SliderRow label="Max CoC" value={maxCOC} min={0.001} max={0.1} step={0.001} unit="" onChange={setMaxCOC} />
-        </>}
-      </Section>
-
-      {/* Motion Blur */}
-      <Section title="Motion Blur" color="purple">
-        <Row label="Enabled">
-          <input className="spx-film-check" type="checkbox" checked={motionBlur} onChange={e => setMotionBlur(e.target.checked)} />
-        </Row>
-        {motionBlur && <>
-          <Row label="Shutter Angle">
-            <select className="spx-film-select" value={shutterAngle} onChange={e => setShutterAngle(+e.target.value)}>
-              {SHUTTER_ANGLES.map(a => <option key={a} value={a}>{a}°</option>)}
-            </select>
-          </Row>
-          <SliderRow label="Shutter Offset" value={shutterOffset} min={-1} max={1} step={0.01} unit="" onChange={setShutterOffset} />
-          <SliderRow label="Samples" value={mbSamples} min={1} max={64} step={1} unit="" onChange={setMbSamples} />
-        </>}
-      </Section>
-
-      {/* Film Grain */}
-      <Section title="Film Grain" color="yellow">
-        <Row label="Enabled">
-          <input className="spx-film-check" type="checkbox" checked={grainEnabled} onChange={e => setGrainEnabled(e.target.checked)} />
-        </Row>
-        {grainEnabled && <>
-          <SliderRow label="Amount" value={grainAmt} min={0} max={1} step={0.01} unit="" onChange={setGrainAmt} />
-          <SliderRow label="Size" value={grainSize} min={0.1} max={2} step={0.01} unit="" onChange={setGrainSize} />
-          <Row label="Color Grain">
-            <input className="spx-film-check" type="checkbox" checked={grainColor} onChange={e => setGrainColor(e.target.checked)} />
-          </Row>
-        </>}
-      </Section>
-
-      {/* Lens FX */}
-      <Section title="Lens FX" color="red">
-        <SliderRow label="Chromatic Ab" value={chromaticAb} min={0} max={2} step={0.01} unit="" onChange={setChromaticAb} />
-        <SliderRow label="Distortion" value={lensDist} min={-1} max={1} step={0.01} unit="" onChange={setLensDist} />
-        <SliderRow label="Vignette" value={vignette} min={0} max={1} step={0.01} unit="" onChange={setVignette} />
-        <Row label="Lens Flare">
-          <input className="spx-film-check" type="checkbox" checked={lensFlare} onChange={e => setLensFlare(e.target.checked)} />
-        </Row>
-        <Row label="Anamorphic">
-          <input className="spx-film-check" type="checkbox" checked={anamorphic} onChange={e => setAnamorphic(e.target.checked)} />
-        </Row>
-      </Section>
-
-      {/* Camera Transform */}
-      <Section title="Camera Transform" color="green" defaultOpen={false}>
-        {[["Pos X",camX,setCamX,-100,100,0.1,"m"],["Pos Y",camY,setCamY,-100,100,0.1,"m"],["Pos Z",camZ,setCamZ,-100,100,0.1,"m"],["Tilt",tiltX,setTiltX,-90,90,0.5,"°"],["Pan",panY,setPanY,-360,360,0.5,"°"],["Roll",rollZ,setRollZ,-180,180,0.5,"°"],["Shake",shake,setShake,0,5,0.01,""]].map(([l,v,s,mn,mx,st,u])=>(
-          <SliderRow key={l} label={l} value={v} min={mn} max={mx} step={st} unit={u} onChange={s} />
-        ))}
-      </Section>
-
-      <div className="spx-film-apply-row">
-        <button className="spx-film-apply-full-btn" onClick={apply}>Apply to Viewport</button>
-        <button className="spx-film-apply-full-btn spx-film-apply-full-btn--secondary" onClick={() => onAction?.("cam_keyframe")}>Keyframe</button>
-      </div>
-    </div>
-  );
+  </div>);
 }

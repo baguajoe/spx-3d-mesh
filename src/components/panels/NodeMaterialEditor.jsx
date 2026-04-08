@@ -1,182 +1,138 @@
-import React, { useState, useRef, useCallback } from "react";
-
-// ── Node Definitions ──────────────────────────────────────────────────────────
-const NODE_DEFS = {
-  "Material Output":    { cat:"Output",  col:"#8b2222", ins:["Surface","Volume","Displacement"], outs:[] },
-  "Principled BSDF":    { cat:"Shader",  col:"#1a3a6b", ins:["Base Color","Metallic","Roughness","IOR","Alpha","Normal","Emission","Emission Strength","Subsurface","Subsurface Color","Anisotropic","Sheen","Clearcoat","Transmission"], outs:["BSDF"] },
-  "Diffuse BSDF":       { cat:"Shader",  col:"#1a3a6b", ins:["Color","Roughness","Normal"], outs:["BSDF"] },
-  "Glossy BSDF":        { cat:"Shader",  col:"#1a3a6b", ins:["Color","Roughness","Normal"], outs:["BSDF"] },
-  "Glass BSDF":         { cat:"Shader",  col:"#1a3a6b", ins:["Color","Roughness","IOR","Normal"], outs:["BSDF"] },
-  "Transparent BSDF":   { cat:"Shader",  col:"#1a3a6b", ins:["Color"], outs:["BSDF"] },
-  "Emission":           { cat:"Shader",  col:"#1a3a6b", ins:["Color","Strength"], outs:["Emission"] },
-  "Mix Shader":         { cat:"Shader",  col:"#1a3a6b", ins:["Fac","Shader A","Shader B"], outs:["Shader"] },
-  "Add Shader":         { cat:"Shader",  col:"#1a3a6b", ins:["Shader A","Shader B"], outs:["Shader"] },
-  "SSS":                { cat:"Shader",  col:"#1a3a6b", ins:["Color","Radius","Scale"], outs:["BSSRDF"] },
-  "Refraction BSDF":    { cat:"Shader",  col:"#1a3a6b", ins:["Color","Roughness","IOR"], outs:["BSDF"] },
-  "Volume Scatter":     { cat:"Shader",  col:"#1a3a6b", ins:["Color","Density","Anisotropy"], outs:["Volume"] },
-  "Volume Absorption":  { cat:"Shader",  col:"#1a3a6b", ins:["Color","Density"], outs:["Volume"] },
-  "Holdout":            { cat:"Shader",  col:"#1a3a6b", ins:[], outs:["Holdout"] },
-  "Image Texture":      { cat:"Texture", col:"#1a5c1a", ins:["Vector"], outs:["Color","Alpha"] },
-  "Noise Texture":      { cat:"Texture", col:"#1a5c1a", ins:["Vector","Scale","Detail","Roughness","Distortion"], outs:["Fac","Color"] },
-  "Musgrave Texture":   { cat:"Texture", col:"#1a5c1a", ins:["Vector","Scale","Detail","Dimension","Lacunarity"], outs:["Fac"] },
-  "Wave Texture":       { cat:"Texture", col:"#1a5c1a", ins:["Vector","Scale","Distortion","Detail"], outs:["Color","Fac"] },
-  "Voronoi Texture":    { cat:"Texture", col:"#1a5c1a", ins:["Vector","Scale","Exponent"], outs:["Distance","Color","Position"] },
-  "Checker Texture":    { cat:"Texture", col:"#1a5c1a", ins:["Vector","Color1","Color2","Scale"], outs:["Color","Fac"] },
-  "Gradient Texture":   { cat:"Texture", col:"#1a5c1a", ins:["Vector"], outs:["Color","Fac"] },
-  "Magic Texture":      { cat:"Texture", col:"#1a5c1a", ins:["Vector","Scale","Distortion"], outs:["Color","Fac"] },
-  "Environment Texture":{ cat:"Texture", col:"#1a5c1a", ins:["Vector"], outs:["Color"] },
-  "Sky Texture":        { cat:"Texture", col:"#1a5c1a", ins:["Vector"], outs:["Color"] },
-  "Mix RGB":            { cat:"Color",   col:"#6b3a1a", ins:["Fac","Color1","Color2"], outs:["Color"] },
-  "RGB Curves":         { cat:"Color",   col:"#6b3a1a", ins:["Fac","Color"], outs:["Color"] },
-  "Hue/Saturation":     { cat:"Color",   col:"#6b3a1a", ins:["Fac","Hue","Saturation","Value","Color"], outs:["Color"] },
-  "Invert":             { cat:"Color",   col:"#6b3a1a", ins:["Fac","Color"], outs:["Color"] },
-  "Bright/Contrast":    { cat:"Color",   col:"#6b3a1a", ins:["Color","Bright","Contrast"], outs:["Color"] },
-  "Gamma":              { cat:"Color",   col:"#6b3a1a", ins:["Color","Gamma"], outs:["Color"] },
-  "Normal Map":         { cat:"Vector",  col:"#1a4a6b", ins:["Strength","Color"], outs:["Normal"] },
-  "Bump":               { cat:"Vector",  col:"#1a4a6b", ins:["Strength","Distance","Height","Normal"], outs:["Normal"] },
-  "Displacement":       { cat:"Vector",  col:"#1a4a6b", ins:["Height","Midlevel","Scale","Normal"], outs:["Displacement"] },
-  "Mapping":            { cat:"Vector",  col:"#1a4a6b", ins:["Vector","Location","Rotation","Scale"], outs:["Vector"] },
-  "Texture Coordinate": { cat:"Vector",  col:"#1a4a6b", ins:[], outs:["Generated","Normal","UV","Object","Camera","Window","Reflection"] },
-  "Math":               { cat:"Convert", col:"#4a3a1a", ins:["Value A","Value B"], outs:["Value"] },
-  "RGB to BW":          { cat:"Convert", col:"#4a3a1a", ins:["Color"], outs:["Val"] },
-  "Combine RGB":        { cat:"Convert", col:"#4a3a1a", ins:["R","G","B"], outs:["Image"] },
-  "Separate RGB":       { cat:"Convert", col:"#4a3a1a", ins:["Image"], outs:["R","G","B"] },
-  "Value":              { cat:"Input",   col:"#3a3a3a", ins:[], outs:["Value"] },
-  "RGB":                { cat:"Input",   col:"#3a3a3a", ins:[], outs:["Color"] },
-  "Fresnel":            { cat:"Input",   col:"#3a3a3a", ins:["IOR","Normal"], outs:["Fac"] },
-  "Layer Weight":       { cat:"Input",   col:"#3a3a3a", ins:["Blend","Normal"], outs:["Fresnel","Facing"] },
-  "Light Path":         { cat:"Input",   col:"#3a3a3a", ins:[], outs:["Is Camera Ray","Is Shadow Ray","Is Diffuse Ray","Is Glossy Ray"] },
-  "Geometry":           { cat:"Input",   col:"#3a3a3a", ins:[], outs:["Position","Normal","Tangent","True Normal","Backfacing"] },
-  "UV Map":             { cat:"Input",   col:"#3a3a3a", ins:[], outs:["UV"] },
-  "Vertex Color":       { cat:"Input",   col:"#3a3a3a", ins:[], outs:["Color","Alpha"] },
-  "Object Info":        { cat:"Input",   col:"#3a3a3a", ins:[], outs:["Location","Color","Alpha","Random"] },
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import * as THREE from 'three';
+const C={bg:'#06060f',panel:'#0d1117',border:'#21262d',teal:'#00ffc8',orange:'#FF6600',text:'#e0e0e0',dim:'#8b949e',font:'JetBrains Mono,monospace'};
+const NODE_TYPES={
+  Output:    {color:'#ff6600',inputs:['Surface','Volume','Displacement'],outputs:[]},
+  Principled:{color:'#4488ff',inputs:['BaseColor','Metallic','Roughness','IOR','Alpha','Normal','Clearcoat','ClearcoatRoughness','Emission','EmissionStrength','Transmission','Sheen'],outputs:['BSDF']},
+  Emission:  {color:'#ffaa00',inputs:['Color','Strength'],outputs:['Emission']},
+  Diffuse:   {color:'#44aa44',inputs:['Color','Roughness','Normal'],outputs:['BSDF']},
+  Glossy:    {color:'#aaaaff',inputs:['Color','Roughness','Normal'],outputs:['BSDF']},
+  Glass:     {color:'#88ccff',inputs:['Color','Roughness','IOR','Normal'],outputs:['BSDF']},
+  MixShader: {color:'#ff44aa',inputs:['Fac','Shader1','Shader2'],outputs:['Shader']},
+  AddShader: {color:'#ffaaff',inputs:['Shader1','Shader2'],outputs:['Shader']},
+  ImageTex:  {color:'#aa44aa',inputs:['Vector'],outputs:['Color','Alpha']},
+  NoiseTex:  {color:'#884400',inputs:['Vector','Scale','Detail','Roughness'],outputs:['Fac','Color']},
+  MixRGB:    {color:'#226622',inputs:['Fac','Color1','Color2'],outputs:['Color']},
+  Math:      {color:'#446644',inputs:['Value1','Value2'],outputs:['Value']},
+  NormalMap: {color:'#4466aa',inputs:['Color','Strength'],outputs:['Normal']},
+  Bump:      {color:'#445566',inputs:['Height','Distance','Normal'],outputs:['Normal']},
+  Fresnel:   {color:'#66aaff',inputs:['IOR'],outputs:['Fac']},
+  ColorRamp: {color:'#aa6622',inputs:['Fac'],outputs:['Color','Alpha']},
+  RGB:       {color:'#cc4444',inputs:[],outputs:['Color']},
+  Value:     {color:'#888844',inputs:[],outputs:['Value']},
+  Displacement:{color:'#cc8844',inputs:['Height','Midlevel','Scale','Normal'],outputs:['Displacement']},
 };
-
-const CATS = ["Output","Shader","Texture","Color","Vector","Convert","Input"];
-const SOCKET_COLORS = { Color:"#c08020", Vector:"#6060c0", Value:"#808080", Shader:"#20c080", BSDF:"#20c080", Volume:"#20c0c0", Fac:"#808080", Normal:"#6060c0", Displacement:"#c06020", default:"#808080" };
-
-let nid = 100;
-const mkNode = (type, x, y) => {
-  const def = NODE_DEFS[type];
-  return { id:++nid, type, x, y, ins: def.ins.map((n,i)=>({id:`${nid}-i${i}`,name:n})), outs: def.outs.map((n,i)=>({id:`${nid}-o${i}`,name:n})) };
-};
-
-const sockColor = (name) => {
-  for (const [k,v] of Object.entries(SOCKET_COLORS)) if (name.includes(k)) return v;
-  return SOCKET_COLORS.default;
-};
-
-function NodeCard({ node, selected, onSelect, onDragStart }) {
-  const def = NODE_DEFS[node.type];
-  return (
-    <div
-      className={`spx-nm-node${selected?" spx-nm-node--selected":""}`}
-      ref={el => { if(el){ el.style.left=node.x+"px"; el.style.top=node.y+"px"; } }}
-      onMouseDown={e=>{e.stopPropagation();onSelect(node.id);onDragStart(e,node.id);}}
-    >
-      <div className="spx-nm-node-hdr" data-col={def.col} ref={el => { if(el) el.style.background=def.col; }}>
-        <span className="spx-nm-node-title">{node.type}</span>
-        <span className="spx-nm-node-cat">{def.cat}</span>
+let _nid=0;
+function mkNode(type,x,y){const def=NODE_TYPES[type]||{color:'#888',inputs:[],outputs:[]};return{id:++_nid,type,x,y,w:160,color:def.color,inputs:def.inputs.map((n,i)=>({id:`${_nid}_i${i}`,name:n,connected:null,value:type==='RGB'?'#ffffff':type==='Value'?1.0:null})),outputs:def.outputs.map((n,i)=>({id:`${_nid}_o${i}`,name:n})),params:{color:'#ffffff',value:1.0,scale:5,blend:'MIX',imageUrl:null}};}
+export default function NodeMaterialEditor({meshRef,open=true,onClose}){
+  const [nodes,setNodes]=useState(()=>[mkNode('Output',400,200),mkNode('Principled',100,150)]);
+  const [links,setLinks]=useState([]);
+  const [drag,setDrag]=useState(null);
+  const [linkDrag,setLinkDrag]=useState(null);
+  const [selected,setSelected]=useState(null);
+  const [pan,setPan]=useState({x:0,y:0});
+  const [zoom,setZoom]=useState(1);
+  const svgRef=useRef(null);
+  const addNode=useCallback((type)=>{setNodes(n=>[...n,mkNode(type,200-pan.x,200-pan.y)]);},[pan]);
+  const deleteNode=useCallback((id)=>{setNodes(n=>n.filter(x=>x.id!==id));setLinks(l=>l.filter(x=>x.fromNode!==id&&x.toNode!==id));},[]);
+  const onMouseDown=useCallback((e,node)=>{e.stopPropagation();setSelected(node.id);setDrag({id:node.id,ox:e.clientX-node.x,oy:e.clientY-node.y});},[]);
+  const onMouseMove=useCallback((e)=>{
+    if(drag){setNodes(n=>n.map(x=>x.id===drag.id?{...x,x:e.clientX-drag.ox,y:e.clientY-drag.oy}:x));}
+    if(linkDrag){setLinkDrag(l=>({...l,ex:e.clientX,ey:e.clientY}));}
+  },[drag,linkDrag]);
+  const onMouseUp=useCallback(()=>{setDrag(null);setLinkDrag(null);},[]);
+  const startLink=useCallback((e,nodeId,outId)=>{e.stopPropagation();const r=e.target.getBoundingClientRect();setLinkDrag({fromNode:nodeId,fromOut:outId,sx:r.left+r.width/2,sy:r.top+r.height/2,ex:r.left,ey:r.top});},[]);
+  const finishLink=useCallback((e,nodeId,inId)=>{e.stopPropagation();if(!linkDrag) return;setLinks(l=>[...l,{id:Date.now(),fromNode:linkDrag.fromNode,fromOut:linkDrag.fromOut,toNode:nodeId,toIn:inId}]);setLinkDrag(null);},[linkDrag]);
+  const applyToMesh=useCallback(()=>{
+    const mesh=meshRef?.current; if(!mesh) return;
+    const principled=nodes.find(n=>n.type==='Principled');
+    if(!principled) return;
+    const mat=new THREE.MeshPhysicalMaterial({color:new THREE.Color(principled.params.color||'#ffffff'),roughness:parseFloat(principled.params.roughness||0.5),metalness:parseFloat(principled.params.metalness||0),clearcoat:parseFloat(principled.params.clearcoat||0),envMapIntensity:1.2});
+    // Apply image textures from linked ImageTex nodes
+    links.forEach(lk=>{
+      const fromNode=nodes.find(n=>n.id===lk.fromNode);
+      if(fromNode?.type==='ImageTex'&&fromNode.params.imageUrl){
+        const tex=new THREE.TextureLoader().load(fromNode.params.imageUrl);
+        const toNode=nodes.find(n=>n.id===lk.toNode);
+        const inSlot=toNode?.inputs.find(i=>i.id===lk.toIn);
+        if(inSlot?.name==='BaseColor') mat.map=tex;
+        else if(inSlot?.name==='Normal') mat.normalMap=tex;
+        else if(inSlot?.name==='Roughness') mat.roughnessMap=tex;
+        else if(inSlot?.name==='Metallic') mat.metalnessMap=tex;
+      }
+    });
+    mat.needsUpdate=true;
+    mesh.material=mat;
+  },[nodes,links,meshRef]);
+  const selNode=nodes.find(n=>n.id===selected);
+  if(!open) return null;
+  return(<div style={{position:'fixed',inset:0,zIndex:2000,background:'rgba(0,0,0,0.85)',display:'flex',flexDirection:'column',fontFamily:C.font}}>
+    {/* Header */}
+    <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:'6px 12px',display:'flex',alignItems:'center',gap:8,height:40,flexShrink:0}}>
+      <div style={{width:6,height:6,borderRadius:'50%',background:C.teal,boxShadow:`0 0 6px ${C.teal}`}}/>
+      <span style={{fontSize:11,fontWeight:700,letterSpacing:2,color:C.teal}}>NODE MATERIAL EDITOR</span>
+      <div style={{marginLeft:16,display:'flex',gap:4,flexWrap:'wrap'}}>
+        {Object.keys(NODE_TYPES).map(t=><button key={t} onClick={()=>addNode(t)} style={{padding:'3px 8px',background:C.bg,border:`1px solid ${NODE_TYPES[t].color}`,borderRadius:3,color:NODE_TYPES[t].color,fontFamily:C.font,fontSize:8,fontWeight:700,cursor:'pointer'}}>{t}</button>)}
       </div>
-      <div className="spx-nm-node-body">
-        {node.outs.map(o=>(
-          <div key={o.id} className="spx-nm-socket-row spx-nm-socket-row--out">
-            <span className="spx-nm-socket-label">{o.name}</span>
-            <div className="spx-nm-socket" ref={el => { if(el) el.style.background=sockColor(o.name); }} />
-          </div>
-        ))}
-        {node.ins.map(i=>(
-          <div key={i.id} className="spx-nm-socket-row spx-nm-socket-row--in">
-            <div className="spx-nm-socket" ref={el => { if(el) el.style.background=sockColor(i.name); }} />
-            <span className="spx-nm-socket-label">{i.name}</span>
-          </div>
-        ))}
+      <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+        <button onClick={applyToMesh} style={{padding:'4px 12px',background:'rgba(0,255,200,0.1)',border:`1px solid ${C.teal}`,borderRadius:4,color:C.teal,fontFamily:C.font,fontSize:10,fontWeight:700,cursor:'pointer'}}>APPLY TO MESH</button>
+        <button onClick={onClose} style={{padding:'4px 12px',background:'rgba(255,102,0,0.1)',border:`1px solid ${C.orange}`,borderRadius:4,color:C.orange,fontFamily:C.font,fontSize:10,fontWeight:700,cursor:'pointer'}}>CLOSE</button>
       </div>
     </div>
-  );
-}
-
-export default function NodeMaterialEditor({ onAction }) {
-  const [nodes,    setNodes]    = useState(()=>[mkNode("Material Output",600,200),mkNode("Principled BSDF",280,80),mkNode("Image Texture",30,80)]);
-  const [selected, setSelected] = useState(null);
-  const [addCat,   setAddCat]   = useState("Shader");
-  const [search,   setSearch]   = useState("");
-  const [zoom,     setZoom]     = useState(1);
-  const [pan,      setPan]      = useState({x:20,y:20});
-  const canvasRef  = useRef(null);
-
-  const filteredDefs = Object.entries(NODE_DEFS).filter(([name,def])=>
-    def.cat===addCat && (!search||name.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  const addNode = (type) => setNodes(prev=>[...prev, mkNode(type, 80-pan.x, 80-pan.y)]);
-
-  const removeSelected = () => { if(!selected) return; setNodes(prev=>prev.filter(n=>n.id!==selected)); setSelected(null); };
-
-  const onDragStart = useCallback((e, id) => {
-    const node = nodes.find(n=>n.id===id);
-    const sx=e.clientX-node.x, sy=e.clientY-node.y;
-    const onMove = (ev) => setNodes(prev=>prev.map(n=>n.id===id?{...n,x:ev.clientX-sx,y:ev.clientY-sy}:n));
-    const onUp   = () => { window.removeEventListener("mousemove",onMove); window.removeEventListener("mouseup",onUp); };
-    window.addEventListener("mousemove",onMove);
-    window.addEventListener("mouseup",onUp);
-  },[nodes]);
-
-  const onCanvasMouseDown = (e) => {
-    if(e.target===canvasRef.current||e.target.classList.contains("spx-nm-canvas-inner")){
-      setSelected(null);
-      const sx=e.clientX-pan.x, sy=e.clientY-pan.y;
-      const onMove=(ev)=>setPan({x:ev.clientX-sx,y:ev.clientY-sy});
-      const onUp=()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
-      window.addEventListener("mousemove",onMove);
-      window.addEventListener("mouseup",onUp);
-    }
-  };
-
-  const onWheel = (e) => { e.preventDefault(); setZoom(z=>Math.max(0.15,Math.min(3,z-e.deltaY*0.001))); };
-
-  return (
-    <div className="spx-nm-editor">
-      <div className="spx-nm-header">
-        <span className="spx-nm-title">Node Material Editor</span>
-        <div className="spx-nm-header-actions">
-          <button className="spx-nm-hdr-btn" onClick={()=>setZoom(1)}>1:1</button>
-          <button className="spx-nm-hdr-btn" onClick={()=>{setZoom(1);setPan({x:20,y:20});}}>Reset</button>
-          <button className="spx-nm-hdr-btn spx-nm-hdr-btn--danger" onClick={removeSelected} disabled={!selected}>Del</button>
-          <button className="spx-nm-hdr-btn spx-nm-hdr-btn--teal" onClick={()=>onAction?.("mat_apply")}>Apply</button>
+    {/* Canvas */}
+    <div style={{flex:1,position:'relative',overflow:'hidden',background:'#050810'}} onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
+      {/* Grid */}
+      <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}>
+        <defs><pattern id='grid' width='40' height='40' patternUnits='userSpaceOnUse'><path d='M 40 0 L 0 0 0 40' fill='none' stroke='#1a1a2a' strokeWidth='0.5'/></pattern></defs>
+        <rect width='100%' height='100%' fill='url(#grid)'/>
+        {/* Links */}
+        {links.map(lk=>{
+          const fn=nodes.find(n=>n.id===lk.fromNode);
+          const tn=nodes.find(n=>n.id===lk.toNode);
+          if(!fn||!tn) return null;
+          const oi=fn.outputs.findIndex(o=>o.id===lk.fromOut);
+          const ii=tn.inputs.findIndex(i=>i.id===lk.toIn);
+          const x1=fn.x+fn.w, y1=fn.y+32+oi*22;
+          const x2=tn.x,       y2=tn.y+32+ii*22;
+          const cx=(x1+x2)/2;
+          return(<g key={lk.id}><path d={`M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`} fill='none' stroke={C.teal} strokeWidth='1.5' opacity='0.7'/><circle cx={x1} cy={y1} r='4' fill={C.teal}/><circle cx={x2} cy={y2} r='4' fill={C.teal}/></g>);
+        })}
+        {linkDrag&&<path d={`M${linkDrag.sx},${linkDrag.sy} C${(linkDrag.sx+linkDrag.ex)/2},${linkDrag.sy} ${(linkDrag.sx+linkDrag.ex)/2},${linkDrag.ey} ${linkDrag.ex},${linkDrag.ey}`} fill='none' stroke='#ffffff' strokeWidth='1' strokeDasharray='4'/>}
+      </svg>
+      {/* Nodes */}
+      {nodes.map(node=>(
+        <div key={node.id} style={{position:'absolute',left:node.x,top:node.y,width:node.w,background:C.panel,border:`1px solid ${selected===node.id?node.color:C.border}`,borderRadius:6,userSelect:'none',boxShadow:selected===node.id?`0 0 8px ${node.color}40`:'none'}} onMouseDown={e=>onMouseDown(e,node)}>
+          <div style={{background:node.color+'22',borderBottom:`1px solid ${node.color}44`,padding:'4px 8px',borderRadius:'5px 5px 0 0',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'grab'}}>
+            <span style={{fontSize:9,fontWeight:700,color:node.color,letterSpacing:1}}>{node.type.toUpperCase()}</span>
+            <span onClick={e=>{e.stopPropagation();deleteNode(node.id);}} style={{color:C.dim,cursor:'pointer',fontSize:10,lineHeight:1}}>×</span>
+          </div>
+          {/* Inputs */}
+          {node.inputs.map((inp,i)=>(<div key={inp.id} style={{display:'flex',alignItems:'center',gap:4,padding:'2px 6px',position:'relative'}} onMouseUp={e=>finishLink(e,node.id,inp.id)}>
+            <div style={{width:8,height:8,borderRadius:'50%',background:'#333',border:`1px solid ${C.teal}`,cursor:'crosshair',flexShrink:0}}/>
+            <span style={{fontSize:8,color:C.dim}}>{inp.name}</span>
+          </div>))}
+          {/* Outputs */}
+          {node.outputs.map((out,i)=>(<div key={out.id} style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:4,padding:'2px 6px'}}>
+            <span style={{fontSize:8,color:C.dim}}>{out.name}</span>
+            <div style={{width:8,height:8,borderRadius:'50%',background:node.color,cursor:'crosshair',flexShrink:0}} onMouseDown={e=>startLink(e,node.id,out.id)}/>
+          </div>))}
+          {/* Params for leaf nodes */}
+          {(node.type==='RGB'||node.type==='Value'||node.type==='ImageTex'||node.type==='NoiseTex')&&(
+            <div style={{padding:'4px 6px',borderTop:`1px solid ${C.border}`}}>
+              {node.type==='RGB'&&<input type='color' value={node.params.color} onChange={e=>{const v=e.target.value;setNodes(n=>n.map(x=>x.id===node.id?{...x,params:{...x.params,color:v}}:x));}} style={{width:'100%',height:20,border:'none',cursor:'pointer'}}/>}
+              {node.type==='Value'&&<input type='range' min={0} max={1} step={0.01} value={node.params.value} onChange={e=>{const v=parseFloat(e.target.value);setNodes(n=>n.map(x=>x.id===node.id?{...x,params:{...x.params,value:v}}:x));}} style={{width:'100%',accentColor:C.teal}}/>}
+              {node.type==='ImageTex'&&<label style={{fontSize:8,color:C.dim,cursor:'pointer',display:'block',padding:'2px',border:`1px dashed ${C.border}`,textAlign:'center',borderRadius:3}}><input type='file' accept='image/*' style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(f){const url=URL.createObjectURL(f);setNodes(n=>n.map(x=>x.id===node.id?{...x,params:{...x.params,imageUrl:url}}:x));}}}/>📁 Load Image</label>}
+              {node.type==='NoiseTex'&&<input type='range' min={0.1} max={20} step={0.1} value={node.params.scale} onChange={e=>{const v=parseFloat(e.target.value);setNodes(n=>n.map(x=>x.id===node.id?{...x,params:{...x.params,scale:v}}:x));}} style={{width:'100%',accentColor:C.teal}}/>}
+            </div>
+          )}
         </div>
-      </div>
-
-      <div className="spx-nm-body">
-        <div className="spx-nm-canvas" ref={canvasRef} onMouseDown={onCanvasMouseDown} onWheel={onWheel}>
-          <div className="spx-nm-canvas-inner" ref={el => { if(el) el.style.transform=`translate(${pan.x}px,${pan.y}px) scale(${zoom})`; }}>
-            {nodes.map(node=>(
-              <NodeCard key={node.id} node={node} selected={selected===node.id} onSelect={setSelected} onDragStart={onDragStart} />
-            ))}
-          </div>
-        </div>
-
-        <div className="spx-nm-sidebar">
-          <div className="spx-nm-sidebar-hdr">Add Node</div>
-          <input className="spx-nm-search" type="text" placeholder="Search nodes…" value={search} onChange={e=>setSearch(e.target.value)}/>
-          <div className="spx-nm-cats">
-            {CATS.map(c=>(
-              <button key={c} className={`spx-nm-cat-btn${addCat===c?" spx-nm-cat-btn--active":""}`} onClick={()=>setAddCat(c)}>{c}</button>
-            ))}
-          </div>
-          <div className="spx-nm-node-list">
-            {filteredDefs.map(([name])=>(
-              <button key={name} className="spx-nm-add-btn" onClick={()=>addNode(name)}>{name}</button>
-            ))}
-          </div>
-          <div className="spx-nm-presets-hdr">Material Presets</div>
-          <div className="spx-nm-presets">
-            {["PBR Metal","PBR Plastic","Glass","Car Paint","Skin SSS","Holographic","Toon","Dissolve","X-Ray","Lava","Ice","Gold","Water","Cloth","Concrete"].map(p=>(
-              <button key={p} className="spx-nm-preset-btn" onClick={()=>onAction?.(`mat_preset_${p.toLowerCase().replace(/ /g,"_")}`)}>{p}</button>
-            ))}
-          </div>
-        </div>
-      </div>
+      ))}
     </div>
-  );
+    {/* Props panel for selected node */}
+    {selNode&&selNode.type==='Principled'&&(<div style={{position:'absolute',right:0,top:40,width:200,height:'calc(100% - 40px)',background:C.panel,borderLeft:`1px solid ${C.border}`,padding:'10px',overflowY:'auto'}}>
+      <div style={{fontSize:9,fontWeight:700,color:C.teal,letterSpacing:1,marginBottom:8}}>PRINCIPLED BSDF</div>
+      {[['color','Base Color','color'],['roughness','Roughness','range'],['metalness','Metalness','range'],['clearcoat','Clearcoat','range'],['transmission','Transmission','range'],['ior','IOR','number'],['emissiveIntensity','Emit Strength','range']].map(([key,label,type])=>(<div key={key} style={{marginBottom:6}}><div style={{fontSize:8,color:C.dim,marginBottom:2}}>{label}</div>{type==='color'?<input type='color' value={selNode.params[key]||'#ffffff'} onChange={e=>{const v=e.target.value;setNodes(n=>n.map(x=>x.id===selNode.id?{...x,params:{...x.params,[key]:v}}:x));}} style={{width:'100%',height:22,border:'none',cursor:'pointer'}}/>:<input type='range' min={type==='number'?1:0} max={type==='number'?3:1} step={0.01} value={selNode.params[key]||0} onChange={e=>{const v=parseFloat(e.target.value);setNodes(n=>n.map(x=>x.id===selNode.id?{...x,params:{...x.params,[key]:v}}:x));}} style={{width:'100%',accentColor:C.teal}}/>}</div>))}
+      <button onClick={applyToMesh} style={{width:'100%',marginTop:8,padding:'7px 0',background:'rgba(0,255,200,0.1)',border:`1px solid ${C.teal}`,borderRadius:4,color:C.teal,fontFamily:C.font,fontSize:9,fontWeight:700,cursor:'pointer'}}>APPLY</button>
+    </div>)}
+  </div>);
 }

@@ -1,181 +1,136 @@
-/**
- * SPX Curve System
- * Bezier curves, NURBS, path objects, curve-to-mesh conversion
- */
 import * as THREE from "three";
 
-export class BezierCurve {
-  constructor(name = "Curve") {
-    this.name     = name;
-    this.points   = []; // { pos, handleLeft, handleRight }
-    this.closed   = false;
-    this.resolution = 12;
-    this.bevelDepth = 0;
-    this.bevelRes   = 4;
-    this.extrudeAmt = 0;
+// ── Spline curve ──────────────────────────────────────────────────────────────
+export function createSpline(points = [], closed = false) {
+  return {
+    id:      crypto.randomUUID(),
+    points,  // [{x,y,z}]
+    closed,
+    type:    "catmullrom",
+    tension: 0.5,
+  };
+}
+
+// ── Get THREE curve from spline ───────────────────────────────────────────────
+export function getThreeCurve(spline) {
+  const pts = spline.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
+  if (pts.length < 2) return null;
+  return new THREE.CatmullRomCurve3(pts, spline.closed, spline.type, spline.tension);
+}
+
+// ── Mesh to curve (find longest edge loop) ────────────────────────────────────
+export function meshToCurve(mesh) {
+  const geo    = mesh.geometry;
+  const pos    = geo.attributes.position;
+  const points = [];
+  // Sample vertices along Y axis as approximation
+  const verts = [];
+  for (let i = 0; i < pos.count; i++) {
+    verts.push({ x: pos.getX(i), y: pos.getY(i), z: pos.getZ(i) });
+  }
+  verts.sort((a, b) => a.y - b.y);
+  // Take every Nth vertex for a smooth curve
+  const step = Math.max(1, Math.floor(verts.length / 20));
+  for (let i = 0; i < verts.length; i += step) points.push(verts[i]);
+  return createSpline(points);
+}
+
+// ── Pipe along curve ──────────────────────────────────────────────────────────
+export function pipeAlongCurve(spline, { radius = 0.1, segments = 64, radialSegments = 8 } = {}) {
+  const curve = getThreeCurve(spline);
+  if (!curve) return null;
+  const geo   = new THREE.TubeGeometry(curve, segments, radius, radialSegments, spline.closed);
+  const mat   = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.5, metalness: 0.1 });
+  return new THREE.Mesh(geo, mat);
+}
+
+// ── Loft between two curves ───────────────────────────────────────────────────
+export function loftCurves(splineA, splineB, { segments = 32 } = {}) {
+  const curveA = getThreeCurve(splineA);
+  const curveB = getThreeCurve(splineB);
+  if (!curveA || !curveB) return null;
+
+  const positions = [], indices = [];
+  const ptsA = curveA.getPoints(segments);
+  const ptsB = curveB.getPoints(segments);
+
+  ptsA.forEach((p, i) => { positions.push(p.x, p.y, p.z); });
+  ptsB.forEach((p, i) => { positions.push(p.x, p.y, p.z); });
+
+  for (let i = 0; i < segments; i++) {
+    const a = i, b = i+1, c = segments+1+i, d = segments+1+i+1;
+    indices.push(a,b,c, b,d,c);
   }
 
-  addPoint(pos, handleLeft=null, handleRight=null) {
-    const hl = handleLeft  || pos.clone().add(new THREE.Vector3(-0.5,0,0));
-    const hr = handleRight || pos.clone().add(new THREE.Vector3( 0.5,0,0));
-    this.points.push({ pos:pos.clone(), handleLeft:hl.clone(), handleRight:hr.clone() });
-    return this;
-  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x888888, side: THREE.DoubleSide }));
+}
 
-  // Evaluate cubic bezier segment
-  _evalSegment(p0, h0r, h1l, p1, t) {
-    const u=1-t;
-    return new THREE.Vector3(
-      u*u*u*p0.x + 3*u*u*t*h0r.x + 3*u*t*t*h1l.x + t*t*t*p1.x,
-      u*u*u*p0.y + 3*u*u*t*h0r.y + 3*u*t*t*h1l.y + t*t*t*p1.y,
-      u*u*u*p0.z + 3*u*u*t*h0r.z + 3*u*t*t*h1l.z + t*t*t*p1.z,
+// ── Extrude mesh along curve ──────────────────────────────────────────────────
+export function extrudeAlongCurve(profileSpline, pathSpline, { steps = 32 } = {}) {
+  const path    = getThreeCurve(pathSpline);
+  const profile = getThreeCurve(profileSpline);
+  if (!path || !profile) return null;
+
+  const profilePts = profile.getPoints(16);
+  const shape      = new THREE.Shape(profilePts.map(p => new THREE.Vector2(p.x, p.y)));
+  const geo        = new THREE.ExtrudeGeometry(shape, {
+    steps,
+    extrudePath: path,
+    bevelEnabled: false,
+  });
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x888888, side: THREE.DoubleSide }));
+}
+
+// ── Convert curve to mesh (flat ribbon) ──────────────────────────────────────
+export function curveToMesh(spline, { width = 0.1, segments = 64 } = {}) {
+  const curve = getThreeCurve(spline);
+  if (!curve) return null;
+  const pts    = curve.getPoints(segments);
+  const frames = curve.computeFrenetFrames(segments, spline.closed);
+  const positions = [], indices = [];
+
+  pts.forEach((pt, i) => {
+    const normal = frames.normals[i] || new THREE.Vector3(0,1,0);
+    positions.push(
+      pt.x - normal.x * width * 0.5,
+      pt.y - normal.y * width * 0.5,
+      pt.z - normal.z * width * 0.5,
+      pt.x + normal.x * width * 0.5,
+      pt.y + normal.y * width * 0.5,
+      pt.z + normal.z * width * 0.5,
     );
-  }
-
-  // Get all points along curve
-  getPoints(steps=null) {
-    const res = steps || this.resolution;
-    const pts = [];
-    const n   = this.closed ? this.points.length : this.points.length - 1;
-    for (let s = 0; s < n; s++) {
-      const p0  = this.points[s];
-      const p1  = this.points[(s+1) % this.points.length];
-      for (let i = 0; i < res; i++) {
-        const t = i / res;
-        pts.push(this._evalSegment(p0.pos, p0.handleRight, p1.handleLeft, p1.pos, t));
-      }
+    if (i < segments) {
+      const b = i * 2;
+      indices.push(b, b+1, b+2, b+1, b+3, b+2);
     }
-    if (!this.closed && this.points.length > 0) pts.push(this.points[this.points.length-1].pos.clone());
-    return pts;
-  }
+  });
 
-  // Convert to tube mesh
-  toMesh(scene, radius=0.05) {
-    const pts   = this.getPoints();
-    const curve = new THREE.CatmullRomCurve3(pts, this.closed);
-    const geo   = this.bevelDepth > 0
-      ? new THREE.TubeGeometry(curve, pts.length*2, this.bevelDepth, this.bevelRes, this.closed)
-      : new THREE.TubeGeometry(curve, pts.length*2, radius, 8, this.closed);
-    const mat  = new THREE.MeshStandardMaterial({ color:0x888aaa, roughness:0.5, metalness:0.1 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.name  = this.name;
-    mesh.castShadow = mesh.receiveShadow = true;
-    scene.add(mesh);
-    return mesh;
-  }
-
-  // Convert to flat mesh (extrude along Z)
-  toExtrudedMesh(scene) {
-    const pts   = this.getPoints().map(p=>new THREE.Vector2(p.x, p.y));
-    const shape = new THREE.Shape(pts);
-    const geo   = new THREE.ExtrudeGeometry(shape, { depth:this.extrudeAmt||0.1, bevelEnabled:false });
-    const mat   = new THREE.MeshStandardMaterial({ color:0x888aaa, roughness:0.5, metalness:0.1, side:THREE.DoubleSide });
-    const mesh  = new THREE.Mesh(geo, mat);
-    mesh.name   = this.name;
-    scene.add(mesh);
-    return mesh;
-  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x888888, side: THREE.DoubleSide }));
 }
 
-export class NURBSCurve {
-  constructor(name="NURBS") {
-    this.name    = name;
-    this.degree  = 3;
-    this.points  = [];
-    this.weights = [];
-    this.knots   = [];
-    this.closed  = false;
-  }
-
-  addPoint(pos, weight=1) {
-    this.points.push(pos.clone());
-    this.weights.push(weight);
-    this._recalcKnots();
-    return this;
-  }
-
-  _recalcKnots() {
-    const n = this.points.length - 1;
-    const d = Math.min(this.degree, n);
-    this.knots = [];
-    for (let i=0; i<=n+d+1; i++) {
-      if(i<=d)this.knots.push(0);
-      else if(i>n)this.knots.push(1);
-      else this.knots.push((i-d)/(n-d+1));
-    }
-  }
-
-  getPoints(steps=64) {
-    if (this.points.length < 2) return this.points;
-    const curve = new THREE.CatmullRomCurve3(this.points, this.closed, "catmullrom", 0.5);
-    return curve.getPoints(steps);
-  }
-
-  toMesh(scene, radius=0.05) {
-    const pts  = this.getPoints();
-    const crv  = new THREE.CatmullRomCurve3(pts, this.closed);
-    const geo  = new THREE.TubeGeometry(crv, pts.length*2, radius, 8, this.closed);
-    const mat  = new THREE.MeshStandardMaterial({ color:0xaaa888, roughness:0.5 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.name  = this.name;
-    scene.add(mesh);
-    return mesh;
-  }
+// ── Add control point ─────────────────────────────────────────────────────────
+export function addPoint(spline, point) {
+  spline.points.push(point);
+  return spline;
 }
 
-export class CurveSystem {
-  constructor(scene) {
-    this.scene  = scene;
-    this.curves = new Map();
-  }
+// ── Remove control point ──────────────────────────────────────────────────────
+export function removePoint(spline, index) {
+  spline.points.splice(index, 1);
+  return spline;
+}
 
-  createBezier(name="Curve") {
-    const c = new BezierCurve(name);
-    this.curves.set(name, c);
-    return c;
-  }
-
-  createNURBS(name="NURBS") {
-    const c = new NURBSCurve(name);
-    this.curves.set(name, c);
-    return c;
-  }
-
-  // Create a path from an array of Vector3
-  createPath(points, name="Path", radius=0.05) {
-    const c = new BezierCurve(name);
-    points.forEach(p => c.addPoint(p));
-    const mesh = c.toMesh(this.scene, radius);
-    this.curves.set(name, c);
-    return { curve:c, mesh };
-  }
-
-  // Circle curve
-  createCircle(radius=1, name="Circle") {
-    const pts=[];
-    for(let i=0;i<8;i++){
-      const a=i/8*Math.PI*2;
-      pts.push(new THREE.Vector3(Math.cos(a)*radius,0,Math.sin(a)*radius));
-    }
-    return this.createPath(pts, name);
-  }
-
-  // Helix
-  createHelix(radius=1, height=3, turns=3, name="Helix") {
-    const pts=[];
-    const steps=turns*16;
-    for(let i=0;i<=steps;i++){
-      const t=i/steps, a=t*turns*Math.PI*2;
-      pts.push(new THREE.Vector3(Math.cos(a)*radius,t*height-height/2,Math.sin(a)*radius));
-    }
-    return this.createPath(pts, name);
-  }
-
-  convertToMesh(curveName, radius=0.05) {
-    const c = this.curves.get(curveName);
-    if (!c) return null;
-    return c.toMesh(this.scene, radius);
-  }
-
-  dispose() { this.curves.clear(); }
+// ── Move control point ────────────────────────────────────────────────────────
+export function movePoint(spline, index, position) {
+  if (spline.points[index]) spline.points[index] = position;
+  return spline;
 }
