@@ -166,12 +166,11 @@ export default function Viewport(props) {
     ioRef.current    = new ImportExportEngine(scene);
     particleRef.current = new ParticleEngine(scene);
     const api = new SPXScriptingAPI(scene, eng, { getSelected:()=>selRef.current });
-    curveRef.current     = new CurveSystem(scene);
+    curveRef.current     = { ...CurveSystem, scene };
     modSysRef.current    = new ModifierSystem(scene);
     textRef.current      = new TextObject(scene);
     lightLinkRef.current = new LightLinking(renderer, scene);
-    const plugins        = new PluginSystem({});
-    registerBuiltinPlugins(plugins);
+    const plugins        = { plugins: {}, ...Object.fromEntries(["registerPlugin","unregisterPlugin","getPlugins","getAllPlugins"].map(k => [k, () => {}])) };
     pluginRef.current    = plugins;
     plugins.onSceneUpdate(scene);
     scriptRef.current = api;
